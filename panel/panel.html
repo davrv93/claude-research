@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="color-scheme" content="light dark"><title>Research Academy</title>
+<style>
+  body{font:14px/1.45 system-ui,sans-serif;margin:0;padding:12px;max-width:720px}
+  .muted{opacity:.7;font-size:12px} .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+  button{padding:6px 10px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer}
+  input,textarea{width:100%;box-sizing:border-box;padding:6px 8px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;font:inherit}
+  #resp{white-space:pre-wrap;border-left:3px solid currentColor;padding:6px 10px;margin:8px 0;min-height:2em}
+  #auth,#ask{display:none} .hidden{display:none!important}
+  code{font-size:12px;word-break:break-all}
+</style></head>
+<body>
+<div id="estado" class="muted">Esperando pregunta…</div>
+<div id="preg" class="muted"></div>
+<div id="resp"></div>
+<div id="uso" class="muted"></div>
+
+<section id="auth">
+  <p>Conecta tu cuenta gratuita de OpenRouter. La llave se guarda solo en este navegador, nunca pasa por Claude ni por el servidor.</p>
+  <div class="row"><button id="abrir">1. Abrir OpenRouter</button><span class="muted">Si no se abre, copia este enlace:</span></div>
+  <code id="url"></code>
+  <div class="row"><input id="codigo" placeholder="2. Pega aqui el codigo que muestra OpenRouter"><button id="canjear">Guardar</button></div>
+</section>
+
+<section id="ask">
+  <div class="row"><textarea id="otra" rows="2" placeholder="Pregunta de seguimiento, va directo al modelo gratuito, sin gastar Claude"></textarea></div>
+  <div class="row"><button id="enviar">Preguntar</button><button id="copiar">Copiar respuesta</button><button id="aclaude" title="Mete la respuesta al contexto de Claude; gasta tokens de Claude">Pasar a Claude</button><button id="salir" class="muted">Desconectar</button></div>
+</section>
+
+<script type="module">
+  import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js";
+  const $ = (id) => document.getElementById(id);
+  const KEY = 'ra_openrouter_key', VER = 'ra_pkce_verifier';
+  let ctx = { pregunta: '', modelo: 'nvidia/nemotron-3-ultra-550b-a55b:free', max_palabras: 150 };
+  let ultima = '';
+  const app = new App({ name: 'Research Academy Panel', version: '0.1.0' });
+
+  const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  async function pkce() {
+    const v = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    localStorage.setItem(VER, v);
+    const c = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v)));
+    return `https://openrouter.ai/auth?code_challenge=${c}&code_challenge_method=S256&key_label=Research%20Academy%20Panel`;
+  }
+  async function mostrarAuth() {
+    const url = await pkce();
+    $('url').textContent = url;
+    $('abrir').onclick = () => window.open(url, '_blank', 'noopener');
+    $('auth').style.display = 'block'; $('ask').style.display = 'none';
+    $('estado').textContent = 'Falta conectar OpenRouter (una sola vez).';
+  }
+  $('canjear').onclick = async () => {
+    const code = $('codigo').value.trim(); if (!code) return;
+    try {
+      const r = await fetch('https://openrouter.ai/api/v1/auth/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, code_verifier: localStorage.getItem(VER), code_challenge_method: 'S256' }) });
+      const j = await r.json(); if (!j.key) throw new Error(JSON.stringify(j));
+      localStorage.setItem(KEY, j.key); $('codigo').value = ''; $('auth').style.display = 'none';
+      if (ctx.pregunta) preguntar(ctx.pregunta);
+    } catch (e) { $('estado').textContent = 'No se pudo canjear el codigo: ' + e.message; }
+  };
+  $('salir').onclick = () => { localStorage.removeItem(KEY); mostrarAuth(); };
+
+  async function preguntar(texto) {
+    const key = localStorage.getItem(KEY); if (!key) return mostrarAuth();
+    $('ask').style.display = 'block'; $('preg').textContent = texto; $('resp').textContent = ''; $('uso').textContent = '';
+    $('estado').textContent = `Consultando ${ctx.modelo}…`;
+    try {
+      const r = await fetch('https://openrouter.ai/api/v1/chat/completions', { method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://github.com/davrv93/claude-research', 'X-Title': 'Research Academy Panel' },
+        body: JSON.stringify({ model: ctx.modelo, max_tokens: Math.round(ctx.max_palabras * 2.5), usage: { include: true },
+          messages: [{ role: 'system', content: `Responde en espanol, claro y directo, maximo ${ctx.max_palabras} palabras. Si das cifras, indica si son aproximadas.` }, { role: 'user', content: texto }] }) });
+      const j = await r.json();
+      if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
+      ultima = j.choices?.[0]?.message?.content ?? '(sin texto)';
+      $('resp').textContent = ultima;
+      const u = j.usage ?? {};
+      $('uso').textContent = `Consumo externo: ${j.model ?? ctx.modelo} · ${u.prompt_tokens ?? '?'} entrada + ${u.completion_tokens ?? '?'} salida tokens · costo ${u.cost != null ? 'US$' + u.cost : 'n/d'} · id ${j.id ?? ''}. Claude: 0 tokens por este texto.`;
+      $('estado').textContent = 'Respuesta del modelo externo (no verificada por Claude).';
+    } catch (e) { $('estado').textContent = 'Error del modelo externo: ' + e.message; if (/401|403|key/i.test(e.message)) mostrarAuth(); }
+  }
+
+  $('enviar').onclick = () => { const t = $('otra').value.trim(); if (t) { $('otra').value = ''; preguntar(t); } };
+  $('copiar').onclick = () => navigator.clipboard?.writeText(ultima);
+  $('aclaude').onclick = async () => {
+    if (!ultima) return;
+    if (typeof app.updateModelContext === 'function') {
+      await app.updateModelContext({ content: [{ type: 'text', text: `Respuesta externa (${ctx.modelo}) pedida por el alumno:\n${ultima}` }] });
+      $('estado').textContent = 'Pasado al contexto de Claude. Esto si gasta tokens de Claude.';
+    } else { $('estado').textContent = 'Este cliente no permite pasar texto a Claude; usa Copiar.'; }
+  };
+
+  app.ontoolinput = ({ arguments: a }) => { if (a) ctx = { ...ctx, ...a }; };
+  app.ontoolresult = ({ structuredContent: sc }) => { if (sc) ctx = { ...ctx, ...sc }; if (ctx.pregunta) preguntar(ctx.pregunta); };
+  await app.connect();
+</script>
+</body></html>

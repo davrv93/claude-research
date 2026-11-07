@@ -189,6 +189,7 @@
     <div class="medidor" id="medidor-consulta"></div>
     <div class="medidor-cab"><span>Acumulado en este panel</span><button id="btn-reiniciar" style="min-height:0;padding:2px 8px;font-size:11.5px">Reiniciar</button></div>
     <div class="medidor" id="medidor-total"></div>
+    <p class="sync" id="cuota" style="margin:8px 0 0"></p>
     <p class="nota">Claude es una <b>estimación</b>: caracteres que entran y salen por la herramienta ÷ 3,8, más 45 tokens fijos. Externo lo mide OpenRouter. Evitado es lo que el modelo externo leyó y escribió (incluidos los resultados de búsqueda) y Claude no tuvo que leer.</p>
   </section>
 
@@ -342,6 +343,7 @@ async function canjear() {
     if (!r.ok || !j.key) throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`);
     guardado.escribir(CLAVE_LLAVE, j.key);
     estado.llave = j.key;
+    pintarCuota();
     guardado.borrar(CLAVE_VERIFIER);
     $('codigo').value = '';
     $('conectar').hidden = true;
@@ -506,6 +508,7 @@ function terminarRespuesta(turno, r, evitadoExtra = 0) {
   const externo = (r.usage.prompt_tokens || 0) + (r.usage.completion_tokens || 0);
   sumar({ externo, evitado: externo + evitadoExtra, costo: r.usage.cost || 0 });
   guardarNota(turno.querySelector('.pregunta').textContent, r.texto, turno._fuentes || [], estado.peticion?.modo || 'delegar');
+  pintarCuota();
 }
 
 // Pregunta de seguimiento al modelo externo, con el historial del hilo. No pasa por Claude.
@@ -543,6 +546,24 @@ async function seguir() {
 function continuar(turno) {
   turno.querySelector('.cortada').hidden = true;
   seguirCon('Continúa exactamente donde te quedaste, sin repetir nada de lo ya dicho.');
+}
+
+// ---------- Cuota de OpenRouter: peticiones gratis que quedan hoy ----------
+async function pintarCuota() {
+  const el = $('cuota'); if (!el || !llave()) return;
+  try {
+    const r = await fetch(`${OPENROUTER}/api/v1/key`, { headers: { Authorization: `Bearer ${llave()}` } });
+    if (!r.ok) throw new Error(`respondió ${r.status}`);
+    const d = (await r.json()).data || {};
+    const q = d.free_model_daily_requests;
+    if (q && typeof q.remaining === 'number') {
+      el.textContent = `OpenRouter gratis hoy: ${q.used} de ${q.limit} peticiones usadas · quedan ${q.remaining} (se reinicia a medianoche UTC; máximo 20 por minuto)${d.is_free_tier === false ? '' : ' · con US$10 de créditos el tope sube a 1000/día'}.`;
+      el.className = 'sync ' + (q.remaining <= 5 ? 'mal' : 'ok');
+    } else {
+      el.textContent = `OpenRouter: uso acumulado US$${(d.usage || 0).toFixed(4)}${d.limit != null ? ` · límite de la llave US$${d.limit}` : ''}.`;
+      el.className = 'sync';
+    }
+  } catch (e) { el.textContent = 'Cuota de OpenRouter no disponible: ' + e.message; el.className = 'sync'; }
 }
 
 // ---------- Cerebro: notas guardadas y sincronizadas ----------
@@ -942,7 +963,7 @@ $('importar').addEventListener('change', async (e) => {
 $('btn-indice-claude').addEventListener('click', () => pasarAlChat(`Índice de mi cerebro Research Academy:\n${indiceTexto()}`, $('nota-cerebro')));
 
 // ---------- Conexión con el host ----------
-const app = new App({ name: 'research-academy-panel', version: '0.6.1' });
+const app = new App({ name: 'research-academy-panel', version: '0.7.1' });
 
 function aplicarTema(ctx) {
   const t = ctx?.theme;
@@ -1049,7 +1070,7 @@ $('btn-reiniciar').addEventListener('click', () => {
 
 pintarMedidor('medidor-consulta', estado.consulta);
 pintarMedidor('medidor-total', leerTotal());
-if (!llave()) $('conectar').hidden = false;
+if (!llave()) $('conectar').hidden = false; else pintarCuota();
 { const f = guardado.leer(CLAVE_FRASE); if (f) activarCerebro(f); else pintarMapa(); }
 
 try {

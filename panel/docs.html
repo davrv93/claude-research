@@ -125,6 +125,7 @@
   <section class="caja">
     <h2>Consumo</h2>
     <div class="medidor" id="medidor-consulta"></div>
+    <p class="sync" id="cuota" style="margin:8px 0 0"></p>
     <p class="nota">Claude es una estimación: lo que entra y sale por la herramienta ÷ 3,8 más 45 tokens, y el contexto compacto si lo envías. Externo lo mide OpenRouter. Evitado: el archivo entero, que Claude no leyó.</p>
   </section>
 
@@ -244,7 +245,7 @@ async function canjear() {
     const r = await fetch(`${OPENROUTER}/api/v1/auth/keys`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: 'S256' }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.key) throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`);
-    guardado.escribir(CLAVE_LLAVE, j.key); guardado.borrar(CLAVE_VERIFIER); $('codigo').value = ''; $('conectar').hidden = true;
+    guardado.escribir(CLAVE_LLAVE, j.key); guardado.borrar(CLAVE_VERIFIER); $('codigo').value = ''; $('conectar').hidden = true; pintarCuota();
     if (estado.archivo && !estado.analisis) await analizar();
   } catch (e) { mostrarError('error-auth', 'No se pudo conectar: ' + e.message); }
 }
@@ -270,7 +271,19 @@ async function llamarChat(mensajes, alTexto, maxTokens = 1200) {
   }
   const ext = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0);
   sumar({ externo: ext, evitado: ext, costo: usage.cost || 0 });
+  pintarCuota();
   return { texto: texto.trim(), usage, finish };
+}
+
+async function pintarCuota() {
+  const el = $('cuota'); if (!llave()) return;
+  try {
+    const r = await fetch(`${OPENROUTER}/api/v1/key`, { headers: { Authorization: `Bearer ${llave()}` } });
+    if (!r.ok) throw new Error(`respondió ${r.status}`);
+    const d = (await r.json()).data || {}, q = d.free_model_daily_requests;
+    if (q && typeof q.remaining === 'number') { el.textContent = `OpenRouter gratis hoy: ${q.used} de ${q.limit} usadas · quedan ${q.remaining} (reinicio a medianoche UTC; 20 por minuto).`; el.className = 'sync ' + (q.remaining <= 5 ? 'mal' : 'ok'); }
+    else { el.textContent = `OpenRouter: uso acumulado US$${(d.usage || 0).toFixed(4)}.`; el.className = 'sync'; }
+  } catch (e) { el.textContent = 'Cuota de OpenRouter no disponible: ' + e.message; el.className = 'sync'; }
 }
 
 // ---- Lectura de archivos, en el navegador ----
@@ -420,7 +433,7 @@ $('btn-reanalizar').addEventListener('click', analizar);
 $('permiso').checked = (guardado.leer(CLAVE_PERMISO) ?? '1') === '1'; $('permiso').addEventListener('change', () => guardado.escribir(CLAVE_PERMISO, $('permiso').checked ? '1' : '0'));
 $('accion').addEventListener('change', () => { estado.peticion.accion = $('accion').value; });
 pintarMedidor();
-if (!llave()) $('conectar').hidden = false;
+if (!llave()) $('conectar').hidden = false; else pintarCuota();
 try { await app.connect(); const c = app.getHostContext?.(); if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; } catch (e) { mostrarError('error', 'No se pudo conectar con el host: ' + e.message); }
 </script>
 </body>

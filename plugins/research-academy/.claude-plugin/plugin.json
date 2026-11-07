@@ -1,7 +1,7 @@
 {
   "name": "research-academy",
   "displayName": "Research Academy",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Investigacion eficiente con herramientas MCP externas y construccion de Artifacts desde Claude Pro.",
   "author": {"name": "Research Academy"},
   "license": "MIT"

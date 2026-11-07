@@ -61,7 +61,34 @@
     return ids.includes(porDefecto) ? porDefecto : porDefecto;
   }
 
-  async function llamar({ proveedor, tarea = 'texto', modelo, mensajes, maxTokens = 1500, temperatura, alTexto, stream = true, _reintento = false }) {
+  // Modelos candidatos de un proveedor para una tarea, en orden: el elegido y luego los demás que cumplen las reglas.
+  async function candidatos(proveedor, tarea, forzar = false) {
+    const p = PROVEEDORES[proveedor];
+    const porDefecto = p.modelos[tarea] || p.modelos.texto;
+    if (!p.elegir || !p.elegir[tarea]) return [porDefecto];
+    const ids = (await listarModelos(proveedor, forzar)).filter((id) => !EXCLUIR.test(id));
+    const out = [];
+    for (const re of p.elegir[tarea]) for (const id of ids.filter((x) => re.test(x)).sort((a, b) => version(b) - version(a))) if (!out.includes(id)) out.push(id);
+    if (!out.length) out.push(porDefecto);
+    return out.slice(0, 4);
+  }
+  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // 503 y 429 son saturación o cuota del momento: se reintenta una vez y luego se prueba el siguiente modelo del proveedor.
+  async function llamar(opts) {
+    if (opts.modelo) return llamarUno(opts);
+    const lista = await candidatos(opts.proveedor, opts.tarea || 'texto');
+    let ultimo;
+    for (const modelo of lista) {
+      for (let intento = 0; intento < 2; intento++) {
+        try { return await llamarUno({ ...opts, modelo, _reintento: true }); }
+        catch (e) { ultimo = e; if (e.status === 503 || e.status === 429 || e.status === 500 || e.status === 502) { if (intento === 0) { await espera(1500); continue; } break; } if (e.status === 404) break; throw e; }
+      }
+    }
+    throw ultimo;
+  }
+
+  async function llamarUno({ proveedor, tarea = 'texto', modelo, mensajes, maxTokens = 1500, temperatura, alTexto, stream = true, _reintento = false }) {
     const p = PROVEEDORES[proveedor]; if (!p) throw new Error('proveedor desconocido');
     const llave = leerLlave(proveedor); if (!llave) throw Object.assign(new Error(`${p.nombre}: sin llave`), { sinLlave: true });
     const mod = modelo || await elegirModelo(proveedor, tarea);
@@ -72,8 +99,8 @@
     const inicio = Date.now();
     let r = await fetchT(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) }, stream ? 120000 : 60000);
     if (proveedor === 'openrouter' && r.status === 400) { cuerpo.reasoning = { exclude: true }; cuerpo.max_tokens = maxTokens + 2048; r = await fetchT(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) }, stream ? 120000 : 60000); }
-    if (r.status === 404 && !modelo && !_reintento) { const nuevo = await elegirModelo(proveedor, tarea, true); if (nuevo !== mod) return llamar({ proveedor, tarea, modelo: nuevo, mensajes, maxTokens, temperatura, alTexto, stream, _reintento: true }); }
-    if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(`${p.nombre} respondió ${r.status}: ${typeof j.error === 'string' ? j.error : j.error?.message || ''} (modelo ${mod})`.trim()), { status: r.status }); }
+    if (r.status === 404 && !modelo && !_reintento) { const nuevo = await elegirModelo(proveedor, tarea, true); if (nuevo !== mod) return llamarUno({ proveedor, tarea, modelo: nuevo, mensajes, maxTokens, temperatura, alTexto, stream, _reintento: true }); }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); const motivo = typeof j.error === 'string' ? j.error : j.error?.message || (r.status === 503 ? 'servicio saturado en este momento' : r.status === 429 ? 'límite de peticiones alcanzado' : ''); throw Object.assign(new Error(`${p.nombre} respondió ${r.status}: ${motivo} (modelo ${mod})`.trim()), { status: r.status }); }
     let texto = '', usage = {}, finish;
     if (!stream) { const j = await r.json(); texto = j.choices?.[0]?.message?.content || ''; usage = j.usage || {}; finish = j.choices?.[0]?.finish_reason; }
     else {
@@ -106,7 +133,7 @@
   }
 
   async function probar(id, alPaso) {
-    try { alPaso?.('listando modelos…'); const ids = await listarModelos(id, true); const mod = await elegirModelo(id, 'texto'); alPaso?.(`probando ${mod}…`); const r = await llamar({ proveedor: id, tarea: 'texto', modelo: mod, mensajes: [{ role: 'user', content: 'Responde solo: ok' }], maxTokens: 8, stream: false }); return { ok: true, modelo: r.modelo, ms: r.ms, texto: r.texto.slice(0, 20), modelos: ids.length }; }
+    try { alPaso?.('listando modelos…'); const ids = await listarModelos(id, true); const mod = await elegirModelo(id, 'texto'); alPaso?.(`probando ${mod}… (si está saturado reintenta y cambia de modelo)`); const r = await llamar({ proveedor: id, tarea: 'texto', mensajes: [{ role: 'user', content: 'Responde solo: ok' }], maxTokens: 8, stream: false }); return { ok: true, modelo: r.modelo, ms: r.ms, texto: r.texto.slice(0, 20), modelos: ids.length }; }
     catch (e) { return { ok: false, error: e.message }; }
   }
 
@@ -123,5 +150,5 @@
     if (cfg.cerebro_auto != null) guardado.escribir('ra-cerebro-auto', cfg.cerebro_auto);
   }
 
-  global.RA_prov = { fetchT, listarModelos, elegirModelo, PROVEEDORES, ORDEN_POR_DEFECTO, leerLlave, guardarLlave, borrarLlave, configurados, enmascarar, orden, guardarOrden, llamar, llamarConRespaldo, probar, exportarConfig, importarConfig, guardado };
+  global.RA_prov = { fetchT, listarModelos, elegirModelo, candidatos, PROVEEDORES, ORDEN_POR_DEFECTO, leerLlave, guardarLlave, borrarLlave, configurados, enmascarar, orden, guardarOrden, llamar, llamarConRespaldo, probar, exportarConfig, importarConfig, guardado };
 })(typeof window !== 'undefined' ? window : globalThis);

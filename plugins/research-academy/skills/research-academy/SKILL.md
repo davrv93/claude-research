@@ -38,7 +38,7 @@ Tras llamar al panel, responde solo: "Listo, revisa el panel." mas el pie. La re
 
 ## Version final con Claude
 
-Si el alumno trae un borrador hecho en el panel ("ahora si, que quede bien", "mejoralo"), redacta tu la version final a partir del borrador y la instruccion. No pidas el archivo original. Maximo 600 palabras salvo que pida mas; entrega el texto listo para pegar.
+Si el alumno trae un borrador hecho en el panel y pide REVISION: responde solo la lista de hasta 5 cambios concretos, maximo 120 palabras, sin reescribir; el panel los aplica gratis. Si pide la version final o reescribir: redacta tu la version final a partir del borrador, maximo 600 palabras, lista para pegar. No pidas el archivo original.
 
 ## Contexto de documento
 

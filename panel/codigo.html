@@ -36,8 +36,11 @@
       <button id="btn-previa">Vista previa (HTML/JS)</button>
       <button id="btn-ejecutar">Ejecutar JS</button>
       <button id="btn-descargar">Descargar archivo</button>
-      <button id="btn-claude" title="Envía la instrucción y el código al chat; eso sí gasta tokens de Claude">Pasar a Claude para la versión final</button>
+      <button id="btn-revision" title="Claude responde solo con hasta 5 cambios concretos, sin reescribir: ~100 tokens de salida">Revisión de Claude (barata)</button>
+      <button id="btn-claude" title="Claude reescribe el código completo: cuesta tanto como pedírselo directo">Reescribir con Claude (cara)</button>
     </div>
+    <div class="fila"><textarea id="revision" placeholder="Pega aquí los cambios que sugirió Claude y el proveedor gratuito los aplica" style="min-height:56px"></textarea></div>
+    <div class="fila"><button id="btn-aplicar">Aplicar cambios aquí (gratis)</button></div>
     <p class="nota" id="nota" hidden></p>
     <iframe class="previa" id="previa" sandbox="allow-scripts" hidden title="Vista previa"></iframe>
     <pre class="salida" id="consola" hidden></pre>
@@ -125,6 +128,24 @@ $('btn-descargar').addEventListener('click', async () => {
     $('nota').hidden = false; $('nota').innerHTML = `Descarga: <a class="enlace" href="${escapar(j.url)}" target="_blank" rel="noopener">${escapar(j.nombre)}</a> (24 h)`;
     try { if (app.openLink) await app.openLink({ url: j.url }); } catch {}
   } catch (e) { $('nota').hidden = false; $('nota').textContent = 'No se pudo subir: ' + e.message; }
+});
+async function enviarChat(texto) {
+  const caps = app.getHostCapabilities?.() || {}; $('nota').hidden = false;
+  try { if (caps.message && app.sendMessage) { await app.sendMessage({ role: 'user', content: [{ type: 'text', text: texto }] }); sumar({ claude: texto.length / 3.8 }); $('nota').textContent = 'Enviado al chat; esto sí gasta tokens de Claude.'; } else { await navigator.clipboard.writeText(texto); $('nota').textContent = 'Copiado: pégalo en el chat.'; } }
+  catch (e) { $('nota').textContent = 'No se pudo enviar: ' + e.message; }
+}
+// Revisión barata: Claude solo lista cambios; el proveedor gratuito los aplica después.
+$('btn-revision').addEventListener('click', () => enviarChat(`Revisa este código (${estado.ultimoLenguaje}) hecho en el panel. Instrucción original: ${$('instruccion').value.trim() || '(ninguna)'}\n\n${estado.ultimo.slice(0, 6000)}\n\nResponde SOLO con una lista de hasta 5 cambios concretos (línea o función, qué cambiar y por qué), máximo 120 palabras. No reescribas el código. Si está bien, di «Sin cambios».`));
+$('btn-aplicar').addEventListener('click', async () => {
+  const cambios = $('revision').value.trim(); if (!cambios || !estado.ultimo) return mostrarError('Pega primero los cambios sugeridos.');
+  if (estado.enCurso) return; estado.enCurso = true; mostrarError(''); $('btn-aplicar').disabled = true;
+  try {
+    mostrarEstado('Aplicando los cambios con el proveedor gratuito…');
+    const r = await P.llamarConRespaldo({ tarea: 'codigo', mensajes: [{ role: 'system', content: `Aplica EXACTAMENTE los cambios indicados al código ${estado.ultimoLenguaje}. No agregues otros cambios. Devuelve solo el código completo resultante, sin \`\`\`.` }, { role: 'user', content: `Código:\n${estado.ultimo}\n\nCambios a aplicar:\n${cambios}` }], maxTokens: 3000, alTexto: (t) => { $('salida').textContent = t; }, alPaso: (p) => mostrarEstado(p) });
+    estado.ultimo = limpiarBloque(r.texto); $('salida').textContent = estado.ultimo; $('modelo').textContent = `${r.proveedor} · ${r.modelo} · ${r.ms} ms`;
+    const u = r.usage || {}; const ext = (u.prompt_tokens || 0) + (u.completion_tokens || 0); sumar({ externo: ext, evitado: ext, costo: u.cost || 0 });
+    $('revision').value = '';
+  } catch (e) { mostrarError(e.message); } finally { estado.enCurso = false; $('btn-aplicar').disabled = false; mostrarEstado(''); }
 });
 $('btn-claude').addEventListener('click', async () => {
   const texto = `Borrador de código (${estado.ultimoLenguaje}) hecho en el panel Código. Instrucción: ${$('instruccion').value.trim() || '(ninguna)'}\n\n${estado.ultimo.slice(0, 6000)}\n\nHaz la versión final: revisa errores y mejora sin cambiar el comportamiento pedido.`;

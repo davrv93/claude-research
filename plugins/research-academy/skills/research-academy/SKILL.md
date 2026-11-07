@@ -3,7 +3,7 @@ name: research-academy
 description: Investigar, resumir archivos, planificar proyectos, crear Artifacts y explicar conceptos en Claude Pro con respuestas cortas y consumo visible. Usar cuando el alumno escriba research-academy o pida investigar, fuentes, resumen, proyecto o app.
 ---
 
-# Research Academy 0.9.1
+# Research Academy 0.9.2
 
 ## Salida (siempre)
 

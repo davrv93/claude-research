@@ -80,3 +80,14 @@ No existe una herramienta de informe sintetizado: Parallel entrega evidencia, Cl
 - Una corrida por condicion; hay variacion entre corridas.
 - Costo total de todas las corridas: cerca de US$10 en API.
 - La medicion que importa al taller es en claude.ai, Configuracion > Uso, con el protocolo de `references/medicion.md`.
+
+## 5. Enrutamiento real con el conector vivo (2026-11-07)
+
+Medido con claude -p conectado al MCP de produccion y la Skill como system prompt; 14 pedidos con el prefijo research-academy; se cuenta la primera herramienta llamada.
+
+| Modelo | Skill 0.9.1 | Skill 0.9.2 + descripciones USAR CUANDO |
+|---|---:|---:|
+| Sonnet | 14/14 | no repetido |
+| Haiku | 10/14 | 14/14 |
+
+Fallos de Haiku antes del cambio: corregir un error pegado, investigar el sueldo minimo, y los dos casos de archivo sin adjunto (pedia el archivo en vez de abrir el panel). Cambios: tabla de palabras del alumno -> herramienta al inicio de la ruta, y descripciones de herramienta que empiezan con USAR CUANDO y dicen que el archivo no tiene que estar adjunto.

@@ -4,7 +4,11 @@ import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import express from 'express';
 import { buildServer } from './mcp.mjs';
-import { estadoAlmacen, guardarCerebro, leerCerebro, MAX_BYTES } from './cerebro.mjs';
+import { cerebroMarkdown, codigoLectura, estadoAlmacen, guardarCerebro, leerCerebro, leerPorCodigo, MAX_BYTES } from './cerebro.mjs';
+import JSZip from 'jszip';
+import { readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { guardarArchivo, limpiarVencidos, MAX_ARCHIVO, rutaArchivo } from './archivos.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -56,6 +60,36 @@ app.use('/cerebro', (req, res, next) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 }, limitar);
+// Script compartido del panel Documentos (funciones puras), servido desde el mismo origen.
+app.get('/docs-extra.js', async (_req, res) => {
+  res.set('Content-Type', 'application/javascript; charset=utf-8');
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Cache-Control', 'public, max-age=300');
+  res.send(await readFile(join(dirname(fileURLToPath(import.meta.url)), 'docs-extra.js'), 'utf8'));
+});
+// Solo lectura por codigo compartido (docente, asesor).
+app.get('/cerebro/lectura/:codigo', async (req, res) => {
+  try { const c = await leerPorCodigo(req.params.codigo); res.json({ notas: c.notas, actualizado: c.actualizado, solo_lectura: true }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+// Exportar todo: cerebro.md + cerebro.json en un zip.
+app.get('/cerebro/:id/zip', async (req, res) => {
+  try {
+    const c = await leerCerebro(req.params.id);
+    const zip = new JSZip();
+    zip.file('cerebro.json', JSON.stringify({ notas: c.notas, actualizado: c.actualizado }, null, 1));
+    zip.file('cerebro.md', cerebroMarkdown(c.notas));
+    zip.file('LEEME.txt', 'Cerebro de Research Academy.\ncerebro.md: para leer o subir a un Proyecto de Claude.\ncerebro.json: para importar en el panel.\n');
+    const buf = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', `attachment; filename="cerebro-${new Date().toISOString().slice(0, 10)}.zip"`);
+    res.send(buf);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+app.get('/cerebro/:id/codigo', async (req, res) => {
+  try { await leerCerebro(req.params.id); res.json({ codigo_lectura: codigoLectura(req.params.id) }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
 app.get('/cerebro/:id', async (req, res) => {
   try { res.json(await leerCerebro(req.params.id)); }
   catch (e) { res.status(e.status || 500).json({ error: e.message }); }

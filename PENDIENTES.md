@@ -35,6 +35,10 @@ Hecho: almacén en el servidor por frase clave, guardado automático con tema y 
 
 Hecho: panel Documentos con descubrimiento de Excel/CSV (estadisticas, formulas, errores), PDF y Word, analisis con el modelo :free, permiso explicito, nota en el cerebro, "Enviar a Claude" con contexto compacto y regla en la Skill para confirmar y preguntar la accion. Probado: descubrimiento con SheetJS en Node, arranque con DOM simulado, herramienta y recurso por MCP. Falta probar en claude.ai: soltar archivo en el iframe, carga de SheetJS/pdf.js/mammoth bajo el CSP, pdf.js sin worker, envio al chat. PPT hecho en 0.8.0 (guion del modelo, graficos calculados en el panel, descarga por enlace del servidor; probado en Node: 164 KB, 7 laminas, subida y descarga identicas). Word hecho en 0.9.0 (seccion con busqueda opcional y referencias APA, insercion al final o tras un titulo con los estilos del documento; probado en Node con JSZip: XML valido, orden correcto, escapado). Excel corregido hecho en 0.10.0 (rangos cortos y errores detectados en el panel, sugerencias del modelo validadas, edicion del XML con JSZip conservando formatos; probado en Node: SUM(C2:C5) pasa a SUM(C2:C19), celda inexistente y formula con = rechazadas, otras celdas intactas). Servidor desplegado con 0.10.0. Falta probar todo el panel Documentos en claude.ai.
 
+## Fases 1 a 3 del mapa (0.11.0, pendiente de probar en claude.ai)
+
+Hecho: los 18 pedidos del mapa (https://claude.ai/artifact/BA2BVnvLptKv3FhVjn7yDM). Probado en Node: funciones puras (Excel y Word desde cero, comparar, limpiar, mensajes, serie, PDF), herramientas MCP (9), codigo de lectura, zip, docs-extra.js servido, recursos con URLs inyectadas. Falta probar en claude.ai: carga de docx/jsPDF/docs-extra bajo el CSP, OCR y audio con los modelos gratuitos (formato de audio aceptado por OpenRouter), calculadoras y citas en el panel Research, plantillas-carrera como skill. Servidor desplegado con 0.11.0.
+
 ## Hallazgos que cambian las prioridades
 
 Medido el 2026-11-07 contra los servidores reales:

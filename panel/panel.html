@@ -178,9 +178,34 @@
         <button id="btn-exportar-json">Exportar cerebro.json</button>
         <label for="importar" style="display:inline-block"><span class="nota" style="margin:0;display:inline-block;padding:7px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;color:var(--fg)">Importar .json</span><input type="file" id="importar" accept="application/json" hidden></label>
         <button id="btn-indice-claude" title="Envía solo el índice (temas y hallazgos) al chat; eso sí gasta tokens de Claude">Pasar índice a Claude</button>
+        <button id="btn-zip">Exportar todo (zip)</button>
+        <button id="btn-codigo">Código para compartir</button>
       </div>
       <p class="nota" id="nota-cerebro" hidden></p>
     </div>
+  </section>
+
+  <section class="caja" id="herramientas" hidden aria-labelledby="t-herr">
+    <h2 id="t-herr">Calculadora</h2>
+    <div class="fila" style="margin-top:0">
+      <label class="check">Tipo <select id="calc-tipo"><option value="igv">IGV</option><option value="punto_equilibrio">Punto de equilibrio</option><option value="prestamo">Préstamo (cuota fija)</option><option value="margen">Margen y precio</option></select></label>
+    </div>
+    <div id="calc-campos" class="fila"></div>
+    <div class="respuesta" id="calc-salida"></div>
+    <p class="nota">Cálculo local, sin modelo ni Claude. IGV 18 %. La cuota de préstamo usa el método francés con tasa efectiva anual.</p>
+  </section>
+
+  <section class="caja" id="citas" hidden aria-labelledby="t-citas">
+    <h2 id="t-citas">Citas en APA 7</h2>
+    <textarea id="citas-urls" placeholder="Una URL por línea"></textarea>
+    <div class="fila"><button class="primario" id="btn-citar">Generar citas</button><button id="btn-citas-copiar">Copiar</button></div>
+    <div class="respuesta" id="citas-salida"></div>
+  </section>
+
+  <section class="caja" id="compartido" hidden aria-labelledby="t-comp">
+    <h2 id="t-comp">Cerebro compartido (solo lectura)</h2>
+    <div class="fila" style="margin-top:0"><input id="codigo-lectura" placeholder="Código de 12 caracteres del alumno" style="max-width:260px"><button class="primario" id="btn-ver-compartido">Ver</button></div>
+    <ul class="lista" id="notas-compartidas"></ul>
   </section>
 
   <section class="caja" aria-labelledby="t-medidor">
@@ -962,8 +987,62 @@ $('importar').addEventListener('change', async (e) => {
 });
 $('btn-indice-claude').addEventListener('click', () => pasarAlChat(`Índice de mi cerebro Research Academy:\n${indiceTexto()}`, $('nota-cerebro')));
 
+// ---------- Calculadoras ----------
+const CALC = {
+  igv: { campos: [['monto', 'Monto', 1000], ['incluye', 'El monto incluye IGV (1 sí, 0 no)', 1]], f: ({ monto, incluye }) => { const base = incluye ? monto / 1.18 : monto; const igv = base * 0.18; return `Base: S/ ${base.toFixed(2)} · IGV 18 %: S/ ${igv.toFixed(2)} · Total: S/ ${(base + igv).toFixed(2)}`; } },
+  punto_equilibrio: { campos: [['fijos', 'Costos fijos mensuales', 3000], ['precio', 'Precio de venta unitario', 10], ['variable', 'Costo variable unitario', 6]], f: ({ fijos, precio, variable }) => { const mc = precio - variable; if (mc <= 0) return 'El precio no cubre el costo variable: no hay punto de equilibrio.'; const u = Math.ceil(fijos / mc); return `Margen de contribución: S/ ${mc.toFixed(2)} por unidad · Punto de equilibrio: ${u.toLocaleString('es-PE')} unidades · Ventas necesarias: S/ ${(u * precio).toFixed(2)} al mes`; } },
+  prestamo: { campos: [['capital', 'Capital', 10000], ['tea', 'Tasa efectiva anual %', 24], ['meses', 'Plazo en meses', 12]], f: ({ capital, tea, meses }) => { const i = Math.pow(1 + tea / 100, 1 / 12) - 1; const cuota = i ? (capital * i) / (1 - Math.pow(1 + i, -meses)) : capital / meses; return `Tasa mensual: ${(i * 100).toFixed(3)} % · Cuota: S/ ${cuota.toFixed(2)} · Total pagado: S/ ${(cuota * meses).toFixed(2)} · Intereses: S/ ${(cuota * meses - capital).toFixed(2)}`; } },
+  margen: { campos: [['costo', 'Costo unitario', 6], ['margen', 'Margen deseado % sobre el precio', 40]], f: ({ costo, margen }) => { if (margen >= 100) return 'El margen debe ser menor que 100 %.'; const precio = costo / (1 - margen / 100); return `Precio sin IGV: S/ ${precio.toFixed(2)} · Precio con IGV: S/ ${(precio * 1.18).toFixed(2)} · Ganancia por unidad: S/ ${(precio - costo).toFixed(2)} (${((precio - costo) / costo * 100).toFixed(1)} % sobre el costo)`; } },
+};
+function pintarCalc() {
+  const t = CALC[$('calc-tipo').value]; const cont = $('calc-campos'); cont.innerHTML = '';
+  for (const [id, et, def] of t.campos) { const l = document.createElement('label'); l.className = 'check'; l.textContent = et + ' '; const i = document.createElement('input'); i.type = 'number'; i.step = 'any'; i.value = def; i.id = 'calc-' + id; i.style.width = '8rem'; i.addEventListener('input', calcular); l.appendChild(i); cont.appendChild(l); }
+  calcular();
+}
+function calcular() { const t = CALC[$('calc-tipo').value]; const v = {}; for (const [id] of t.campos) v[id] = Number($('calc-' + id).value) || 0; $('calc-salida').textContent = t.f(v); }
+$('calc-tipo').addEventListener('change', pintarCalc);
+
+// ---------- Citas APA ----------
+async function citar(urls) {
+  if (!llave()) { $('conectar').hidden = false; return; }
+  $('citas').hidden = false; $('citas-urls').value = urls.join('\n'); $('citas-salida').textContent = ''; mostrarEstado('Leyendo las páginas…');
+  try {
+    const r = await fetch(PARALLEL, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'web_fetch', arguments: { urls: urls.slice(0, 10), objective: 'título, autor u organización, fecha de publicación y nombre del sitio' } } }) });
+    const crudo = await r.text(); const linea = crudo.split('\n').find((l) => l.startsWith('data: '));
+    const rpc = JSON.parse(linea ? linea.slice(6) : crudo); if (rpc.error) throw new Error(rpc.error.message);
+    const datos = JSON.parse(rpc.result?.content?.[0]?.text || '{}');
+    sumar({ evitado: crudo.length / 3.8 });
+    const paginas = (datos.results || []).map((x) => ({ url: x.url, title: x.title || '', extracto: (x.excerpts || []).join(' … ').slice(0, 700) }));
+    const faltantes = urls.filter((u) => !paginas.find((p) => p.url === u)).map((u) => ({ url: u, title: '', extracto: '' }));
+    mostrarEstado(`Armando referencias con ${estado.peticion?.modelo || MODELO_POR_DEFECTO_CITAS}…`);
+    estado.peticion = estado.peticion || { modelo: MODELO_POR_DEFECTO_CITAS, max_palabras: 200 };
+    const res = await preguntarModelo([{ role: 'system', content: 'Devuelve SOLO una lista, una referencia por línea, en formato APA 7 en español, a partir de las páginas dadas (autor u organización inferible del dominio o del contenido, año o (s. f.), título, sitio, URL). Sin numeración ni texto extra.' }, { role: 'user', content: [...paginas, ...faltantes].map((p, i) => `[${i + 1}] ${p.url}\nTítulo: ${p.title}\n${p.extracto}`).join('\n\n') }], null);
+    $('citas-salida').textContent = res.texto;
+    estado.ultimaRespuesta = res.texto; estado.fuentes = paginas;
+    const u = res.usage || {}; sumar({ externo: (u.prompt_tokens || 0) + (u.completion_tokens || 0), evitado: (u.prompt_tokens || 0) + (u.completion_tokens || 0), costo: u.cost || 0 });
+    guardarNota(`Citas APA (${urls.length})`, res.texto, paginas, 'citar');
+  } catch (e) { mostrarError('error', 'No se pudieron generar las citas: ' + e.message); }
+  finally { mostrarEstado(''); }
+}
+const MODELO_POR_DEFECTO_CITAS = 'nvidia/nemotron-3-ultra-550b-a55b:free';
+$('btn-citar').addEventListener('click', () => { const urls = $('citas-urls').value.split(/\s+/).filter((u) => /^https?:\/\//.test(u)); if (urls.length) citar(urls); });
+$('btn-citas-copiar').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('citas-salida').textContent); $('btn-citas-copiar').textContent = 'Copiado'; setTimeout(() => ($('btn-citas-copiar').textContent = 'Copiar'), 1500); } catch {} });
+
+// ---------- Cerebro compartido, zip y código ----------
+async function verCompartido(codigo) {
+  $('compartido').hidden = false; $('codigo-lectura').value = codigo;
+  try {
+    const r = await fetch(`${CEREBRO_URL}/cerebro/lectura/${encodeURIComponent(codigo)}`, { cache: 'no-store' });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || `servidor respondió ${r.status}`);
+    $('notas-compartidas').innerHTML = (j.notas || []).length ? j.notas.map((n) => `<li><div class="meta"><span class="tema">${escapar(n.tema || '(sin tema)')}</span><span>${escapar(String(n.fecha || '').slice(0, 10))} · ${escapar(n.modo || '')}</span></div><div>${escapar(n.pregunta)}</div><ul class="hallazgos">${(n.hallazgos || []).map((h) => `<li>${escapar(h)}</li>`).join('')}</ul><details><summary>Respuesta completa</summary><div class="detalle">${escapar(n.respuesta || '')}</div></details></li>`).join('') : '<li class="nota" style="margin:0">Ese cerebro no tiene notas.</li>';
+  } catch (e) { $('notas-compartidas').innerHTML = `<li class="nota" style="margin:0;color:var(--bad)">No se pudo leer: ${escapar(e.message)}</li>`; }
+}
+$('btn-ver-compartido').addEventListener('click', () => { const c = $('codigo-lectura').value.trim().toLowerCase(); if (/^[a-f0-9]{12}$/.test(c)) verCompartido(c); });
+$('btn-zip').addEventListener('click', async () => { if (!C().id || !urlCerebro()) return; const url = `${urlCerebro()}/zip`; try { if (app.openLink) await app.openLink({ url }); else window.open(url, '_blank', 'noopener'); } catch { window.open(url, '_blank', 'noopener'); } $('nota-cerebro').hidden = false; $('nota-cerebro').textContent = 'Descarga: ' + url; });
+$('btn-codigo').addEventListener('click', async () => { if (!C().id || !urlCerebro()) return; try { const j = await (await fetch(`${urlCerebro()}/codigo`)).json(); $('nota-cerebro').hidden = false; $('nota-cerebro').textContent = `Código de solo lectura: ${j.codigo_lectura}. Dáselo a tu docente o asesor; podrá leer tus notas, no cambiarlas.`; } catch (e) { $('nota-cerebro').hidden = false; $('nota-cerebro').textContent = 'No se pudo obtener el código: ' + e.message; } });
+
 // ---------- Conexión con el host ----------
-const app = new App({ name: 'research-academy-panel', version: '0.7.1' });
+const app = new App({ name: 'research-academy-panel', version: '0.11.0' });
 
 function aplicarTema(ctx) {
   const t = ctx?.theme;
@@ -974,7 +1053,7 @@ function aplicarTema(ctx) {
 app.ontoolinput = (params) => {
   estado.entradaChars = JSON.stringify(params?.arguments || {}).length;
   const a = params?.arguments || {};
-  if (a.pregunta && !('tema' in a && !a.pregunta)) {
+  if (a.pregunta && !('tema' in a && !a.pregunta) && !a.urls && !a.tipo) {
     $('consulta').hidden = false;
     if (!estado.turnoPendiente) estado.turnoPendiente = nuevoTurno(a.pregunta);
     $('modelo').textContent = a.modelo || '';
@@ -994,6 +1073,15 @@ app.ontoolresult = async (result) => {
     mostrarEstado('');
     mostrarError('error', (result?.content || []).map((c) => c.text).join(' ') || 'La herramienta devolvió un error.');
     return;
+  }
+  if (sc.modo === 'calcular') {
+    if (estado.turnoPendiente) { estado.turnoPendiente.remove(); estado.turnoPendiente = null; }
+    mostrarEstado(''); $('herramientas').hidden = false; $('calc-tipo').value = sc.tipo || 'igv'; pintarCalc(); $('herramientas').scrollIntoView({ behavior: 'smooth' }); return;
+  }
+  if (sc.modo === 'citar') {
+    if (estado.turnoPendiente) { estado.turnoPendiente.remove(); estado.turnoPendiente = null; }
+    estado.peticion = { modelo: sc.modelo || MODELO_POR_DEFECTO_CITAS, max_palabras: 300, modo: 'citar' };
+    $('modelo').textContent = estado.peticion.modelo; await citar(sc.urls || []); $('citas').scrollIntoView({ behavior: 'smooth' }); return;
   }
   if (sc.modo === 'mapa') {
     if (estado.turnoPendiente) { estado.turnoPendiente.remove(); estado.turnoPendiente = null; }

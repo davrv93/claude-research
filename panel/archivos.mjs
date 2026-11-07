@@ -16,6 +16,8 @@ const TIPOS = {
   md: 'text/markdown; charset=utf-8',
   txt: 'text/plain; charset=utf-8',
   json: 'application/json; charset=utf-8',
+  png: 'image/png',
+  pdf: 'application/pdf',
 };
 
 export const nombreSeguro = (n) => String(n || 'archivo').normalize('NFKD').replace(/[^\w.\-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) || 'archivo';

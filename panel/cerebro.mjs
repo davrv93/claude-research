@@ -11,6 +11,41 @@ const ID_RE = /^[a-f0-9]{64}$/;
 
 export const idDeFrase = (frase) => createHash('sha256').update(String(frase).trim().normalize('NFC')).digest('hex');
 export const idValido = (id) => ID_RE.test(id);
+// Codigo de solo lectura: 12 hex derivados del id. Quien lo tenga puede leer, no escribir.
+export const codigoLectura = (id) => createHash('sha256').update('lectura:' + id).digest('hex').slice(0, 12);
+export const codigoValido = (c) => /^[a-f0-9]{12}$/.test(c);
+const rutaLectura = (codigo) => join(DATA_DIR, 'lectura', `${codigo}.json`);
+export async function registrarLectura(id) {
+  await mkdir(join(DATA_DIR, 'lectura'), { recursive: true });
+  const codigo = codigoLectura(id);
+  await writeFile(rutaLectura(codigo), JSON.stringify({ id }), 'utf8');
+  return codigo;
+}
+export async function leerPorCodigo(codigo) {
+  if (!codigoValido(codigo)) throw Object.assign(new Error('código inválido'), { status: 400 });
+  try {
+    const { id } = JSON.parse(await readFile(rutaLectura(codigo), 'utf8'));
+    return leerCerebro(id);
+  } catch (e) {
+    if (e.code === 'ENOENT') throw Object.assign(new Error('código no encontrado'), { status: 404 });
+    throw e;
+  }
+}
+export function cerebroMarkdown(notas) {
+  const grupos = new Map();
+  for (const n of notas) { const t = n.tema || '(sin tema)'; if (!grupos.has(t)) grupos.set(t, []); grupos.get(t).push(n); }
+  let md = `# Cerebro Research Academy\n\nExportado ${new Date().toISOString().slice(0, 10)} · ${notas.length} notas\n`;
+  for (const [tema, ns] of grupos) {
+    md += `\n## ${tema}\n`;
+    for (const n of ns) {
+      md += `\n### ${n.pregunta} (${String(n.fecha || '').slice(0, 10)})\n`;
+      for (const h of n.hallazgos || []) md += `- ${h}\n`;
+      for (const f of n.fuentes || []) md += `- Fuente: ${f.url}\n`;
+      if (n.respuesta) md += `\n${String(n.respuesta).slice(0, 4000)}\n`;
+    }
+  }
+  return md;
+}
 const ruta = (id) => join(DATA_DIR, 'cerebro', `${id}.json`);
 
 export async function leerCerebro(id) {
@@ -34,7 +69,8 @@ export async function guardarCerebro(id, cuerpo) {
   const tmp = ruta(id) + '.tmp';
   await writeFile(tmp, texto, 'utf8');
   await rename(tmp, ruta(id));
-  return { actualizado: doc.actualizado, notas: notas.length, bytes: Buffer.byteLength(texto) };
+  const codigo = await registrarLectura(id);
+  return { actualizado: doc.actualizado, notas: notas.length, bytes: Buffer.byteLength(texto), codigo_lectura: codigo };
 }
 
 // Búsqueda simple por palabras en tema, pregunta, hallazgos y etiquetas. Devuelve las notas más recientes que coinciden.

@@ -2,9 +2,14 @@
 
 Delegacion real: la respuesta del modelo gratuito se muestra al alumno en un panel dentro del chat de Claude y **no entra al contexto de Claude**. Claude solo emite la llamada a la herramienta y una frase.
 
+## Herramientas
+
+- `delegar(pregunta)`: pregunta directa al modelo `:free`.
+- `investigar(pregunta, consultas)`: el panel busca en la web con Parallel (`mcp.parallel.ai`, sin cuenta, CORS abierto) y el modelo `:free` redacta la sintesis citando [n] solo las fuentes numeradas. Claude no lee el resultado de busqueda (unos 50 000 caracteres por busqueda).
+
 ## Como funciona
 
-1. Claude llama a la herramienta `delegar(pregunta, modelo, max_palabras)`.
+1. Claude llama a la herramienta `delegar(pregunta, modelo, max_palabras)` o `investigar(pregunta, consultas)`.
 2. El servidor NO llama a ningun modelo. Devuelve una linea de texto para Claude y `structuredContent` con la pregunta para el panel.
 3. claude.ai renderiza `panel.html` en un marco aislado (MCP App). El panel llama a `https://openrouter.ai/api/v1/chat/completions` desde el navegador del alumno con un modelo `:free`, muestra la respuesta, tokens y costo.
 4. La llave de OpenRouter se crea con OAuth PKCE desde el panel y se guarda en `localStorage` del origen del panel. Nunca pasa por Claude ni por este servidor.
@@ -51,6 +56,10 @@ curl -s -X POST http://localhost:3000/mcp -H 'Content-Type: application/json' -H
 ```
 
 Debe mostrar `delegar` con `_meta.ui.resourceUri = ui://research-academy/panel`.
+
+## Prueba local del pipeline de busqueda
+
+`node ../scratch/test_buscar.mjs` no esta en el repo; la misma logica vive en `panel.html` (`buscar`). Verificado el 2026-11-07: 5 fuentes, 54 943 caracteres crudos, 5 094 caracteres al modelo externo, 0 a Claude.
 
 ## Pendiente de confirmar en claude.ai
 

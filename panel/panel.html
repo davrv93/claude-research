@@ -14,6 +14,7 @@
 <div id="preg" class="muted"></div>
 <div id="resp"></div>
 <div id="uso" class="muted"></div>
+<ol id="fuentes" class="muted"></ol>
 
 <section id="auth">
   <p>Conecta tu cuenta gratuita de OpenRouter. La llave se guarda solo en este navegador, nunca pasa por Claude ni por el servidor.</p>
@@ -31,9 +32,9 @@
   import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js";
   const $ = (id) => document.getElementById(id);
   const KEY = 'ra_openrouter_key', VER = 'ra_pkce_verifier';
-  let ctx = { pregunta: '', modelo: 'nvidia/nemotron-3-ultra-550b-a55b:free', max_palabras: 150 };
+  let ctx = { modo: 'delegar', pregunta: '', consultas: [], modelo: 'nvidia/nemotron-3-ultra-550b-a55b:free', max_palabras: 150 };
   let ultima = '';
-  const app = new App({ name: 'Research Academy Panel', version: '0.1.0' });
+  const app = new App({ name: 'Research Academy Panel', version: '0.2.0' });
 
   const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   async function pkce() {
@@ -61,22 +62,45 @@
   };
   $('salir').onclick = () => { localStorage.removeItem(KEY); mostrarAuth(); };
 
-  async function preguntar(texto) {
+  // Busqueda web via Parallel MCP, desde el navegador. Sin cuenta; CORS abierto.
+  async function buscar(objetivo, consultas) {
+    const r = await fetch('https://mcp.parallel.ai/mcp', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'web_search', arguments: { objective: objetivo, search_queries: consultas } } }) });
+    const raw = await r.text();
+    const line = raw.split('\n').find((l) => l.startsWith('data: ')) ?? raw;
+    const msg = JSON.parse(line.replace(/^data: /, ''));
+    if (msg.error) throw new Error(msg.error.message);
+    const inner = JSON.parse(msg.result.content[0].text);
+    return { crudo: raw.length, fuentes: (inner.results ?? []).slice(0, 5).map((x) => ({ url: x.url, titulo: x.title, extracto: (x.excerpts ?? []).join(' ').replace(/\s+/g, ' ').slice(0, 900) })) };
+  }
+  function pintarFuentes(fs) {
+    $('fuentes').replaceChildren(...fs.map((f) => { const li = document.createElement('li'); const a = document.createElement('a'); a.href = f.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = f.titulo || f.url; li.appendChild(a); return li; }));
+  }
+
+  async function preguntar(texto, fuentes) {
     const key = localStorage.getItem(KEY); if (!key) return mostrarAuth();
     $('ask').style.display = 'block'; $('preg').textContent = texto; $('resp').textContent = ''; $('uso').textContent = '';
+    if (!fuentes) $('fuentes').replaceChildren();
     $('estado').textContent = `Consultando ${ctx.modelo}…`;
+    const sistema = fuentes
+      ? `Responde en espanol, maximo ${ctx.max_palabras} palabras, usando SOLO las fuentes numeradas. Cita cada dato con [n]. Si las fuentes no bastan o se contradicen, dilo en una frase.`
+      : `Responde en espanol, claro y directo, maximo ${ctx.max_palabras} palabras. Si das cifras, indica si son aproximadas.`;
+    const usuario = fuentes
+      ? `Pregunta: ${texto}\n\nFuentes:\n` + fuentes.map((f, i) => `[${i + 1}] ${f.titulo} (${f.url})\n${f.extracto}`).join('\n\n')
+      : texto;
     try {
       const r = await fetch('https://openrouter.ai/api/v1/chat/completions', { method: 'POST',
         headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://github.com/davrv93/claude-research', 'X-Title': 'Research Academy Panel' },
         body: JSON.stringify({ model: ctx.modelo, max_tokens: Math.round(ctx.max_palabras * 2.5), usage: { include: true },
-          messages: [{ role: 'system', content: `Responde en espanol, claro y directo, maximo ${ctx.max_palabras} palabras. Si das cifras, indica si son aproximadas.` }, { role: 'user', content: texto }] }) });
+          messages: [{ role: 'system', content: sistema }, { role: 'user', content: usuario }] }) });
       const j = await r.json();
       if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
       ultima = j.choices?.[0]?.message?.content ?? '(sin texto)';
       $('resp').textContent = ultima;
       const u = j.usage ?? {};
       $('uso').textContent = `Consumo externo: ${j.model ?? ctx.modelo} · ${u.prompt_tokens ?? '?'} entrada + ${u.completion_tokens ?? '?'} salida tokens · costo ${u.cost != null ? 'US$' + u.cost : 'n/d'} · id ${j.id ?? ''}. Claude: 0 tokens por este texto.`;
-      $('estado').textContent = 'Respuesta del modelo externo (no verificada por Claude).';
+      $('estado').textContent = fuentes ? `Sintesis con ${fuentes.length} fuentes web (no verificada por Claude). Busqueda de ${ctx._crudo ?? '?'} caracteres que Claude no leyo.` : 'Respuesta del modelo externo (no verificada por Claude).';
     } catch (e) { $('estado').textContent = 'Error del modelo externo: ' + e.message; if (/401|403|key/i.test(e.message)) mostrarAuth(); }
   }
 
@@ -91,7 +115,21 @@
   };
 
   app.ontoolinput = ({ arguments: a }) => { if (a) ctx = { ...ctx, ...a }; };
-  app.ontoolresult = ({ structuredContent: sc }) => { if (sc) ctx = { ...ctx, ...sc }; if (ctx.pregunta) preguntar(ctx.pregunta); };
+  async function investigar() {
+    $('estado').textContent = 'Buscando en la web…'; $('preg').textContent = ctx.pregunta; $('resp').textContent = ''; $('fuentes').replaceChildren();
+    try {
+      const consultas = (ctx.consultas && ctx.consultas.length) ? ctx.consultas : [ctx.pregunta.split(/\s+/).slice(0, 6).join(' ')];
+      const { crudo, fuentes } = await buscar(ctx.pregunta, consultas);
+      ctx._crudo = crudo; pintarFuentes(fuentes);
+      if (!fuentes.length) { $('estado').textContent = 'La busqueda no devolvio resultados.'; return; }
+      await preguntar(ctx.pregunta, fuentes);
+    } catch (e) { $('estado').textContent = 'Error en la busqueda web: ' + e.message; }
+  }
+  app.ontoolresult = ({ structuredContent: sc }) => {
+    if (sc) ctx = { ...ctx, ...sc };
+    if (!ctx.pregunta) return;
+    if (ctx.modo === 'investigar') investigar(); else preguntar(ctx.pregunta);
+  };
   await app.connect();
 </script>
 </body></html>

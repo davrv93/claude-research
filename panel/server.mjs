@@ -16,7 +16,7 @@ const PANEL_HTML = readFileSync(new URL('./panel.html', import.meta.url), 'utf8'
 const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 
 function buildServer() {
-  const server = new McpServer({ name: 'research-academy-panel', version: '0.1.0' });
+  const server = new McpServer({ name: 'research-academy-panel', version: '0.2.0' });
 
   registerAppTool(
     server,
@@ -38,7 +38,33 @@ function buildServer() {
       }
       return {
         content: [{ type: 'text', text: `Panel abierto con ${modelo}. El alumno ve la respuesta ahi. Responde solo: "Listo, revisa el panel." mas el pie Consumo.` }],
-        structuredContent: { pregunta, modelo, max_palabras },
+        structuredContent: { modo: 'delegar', pregunta, modelo, max_palabras },
+      };
+    },
+  );
+
+  registerAppTool(
+    server,
+    'investigar',
+    {
+      title: 'Investigar en el panel',
+      description:
+        'Investigacion web completa fuera de Claude: el panel busca en la web (Parallel) y un modelo gratuito de OpenRouter redacta la sintesis con fuentes. El alumno ve todo en el panel; nada vuelve al modelo. Usar para actualidad, precios, rankings, normativa, estadisticas. Tras llamar, responde solo con una frase corta y el pie Consumo.',
+      inputSchema: {
+        pregunta: z.string().min(3).max(2000).describe('Lo que el alumno quiere saber, en espanol.'),
+        consultas: z.array(z.string().min(3).max(80)).min(1).max(3).describe('2 o 3 consultas de busqueda de 3 a 6 palabras, relacionadas con la pregunta.'),
+        modelo: z.string().default(DEFAULT_MODEL).describe('Id de modelo OpenRouter terminado en :free.'),
+        max_palabras: z.number().int().min(50).max(400).default(150).describe('Longitud maxima de la sintesis.'),
+      },
+      _meta: { ui: { resourceUri: PANEL_URI } },
+    },
+    async ({ pregunta, consultas, modelo, max_palabras }) => {
+      if (!modelo.endsWith(':free')) {
+        return { content: [{ type: 'text', text: 'Rechazado: solo modelos :free.' }], isError: true };
+      }
+      return {
+        content: [{ type: 'text', text: `Panel investigando con Parallel + ${modelo}. El alumno ve fuentes y sintesis ahi. Responde solo: "Listo, revisa el panel." mas el pie Consumo.` }],
+        structuredContent: { modo: 'investigar', pregunta, consultas, modelo, max_palabras },
       };
     },
   );
@@ -50,7 +76,7 @@ function buildServer() {
       text: PANEL_HTML,
       _meta: { ui: {
         ...(UI_DOMAIN ? { domain: UI_DOMAIN } : {}),
-        csp: { connectDomains: ['https://openrouter.ai'], resourceDomains: ['https://unpkg.com'] },
+        csp: { connectDomains: ['https://openrouter.ai', 'https://mcp.parallel.ai'], resourceDomains: ['https://unpkg.com'] },
       } },
     }],
   }));

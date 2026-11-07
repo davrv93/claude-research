@@ -5,9 +5,10 @@
 1. Desplegar `panel/` en un host Node gratuito con `SERVER_URL=https://HOST/mcp`. Lo hace el instructor una sola vez; los alumnos no instalan nada.
 2. Agregar el conector por URL en claude.ai y comprobar que el panel se renderiza (permiso "Permitir").
 3. Flujo de autorizacion del alumno: boton "Abrir OpenRouter" debe abrir pestana desde el iframe. Si el marco lo bloquea, el alumno copia el enlace que muestra el panel. OpenRouter muestra un codigo de un solo uso (vence en 10 minutos); el alumno lo pega en el panel y queda conectado para siempre en ese navegador. No es la llave API; la llave nunca toca el servidor.
-4. Confirmar que Claude recibe solo la linea de `content` y no todo el `structuredContent` (si lo recibe, son unos 40 tokens).
-5. Medir con Configuracion > Uso: misma pregunta con panel, con conector OpenRouter clasico y sin nada.
-6. Tras validar: poner la URL en `plugins/research-academy/.mcp.json`, cambiar la fila OpenRouter de `SKILL.md` a `delegar`, subir version 0.5.0.
+4. Probar `investigar` real: la primera llamada a Parallel desde el iframe puede pedir aceptar terminos (`x-parallel-terms`); revisar consola del panel.
+5. Confirmar que Claude recibe solo la linea de `content` y no todo el `structuredContent` (si lo recibe, son unos 40 tokens).
+6. Medir con Configuracion > Uso: misma pregunta con panel, con conector OpenRouter clasico y sin nada.
+7. Tras validar: poner la URL en `plugins/research-academy/.mcp.json`, cambiar la fila OpenRouter de `SKILL.md` a `delegar`, subir version 0.5.0.
 
 ## Hallazgos que cambian las prioridades
 
@@ -24,7 +25,7 @@ Conclusion: el gasto grande de la configuracion actual no es lo que Claude escri
 
 ## Oportunidades, por impacto
 
-1. **Busqueda web dentro del panel (alto).** `mcp.parallel.ai` responde sin autenticacion y con CORS abierto desde el origen del panel. Herramienta `investigar(pregunta)`: el panel llama a `web_search`, pasa los extractos al modelo `:free` y muestra sintesis con fuentes. Claude no lee los 13 000 tokens. Ahorro estimado: 95 % del costo de una investigacion.
+1. **Busqueda web dentro del panel (alto). HECHO en `panel/` 0.2.0, falta prueba en claude.ai.** `investigar(pregunta, consultas)`: el panel llama a `web_search` de Parallel desde el navegador, recorta 5 fuentes a 900 caracteres cada una, el modelo `:free` sintetiza citando [n]. Medido: 54 943 caracteres crudos, 5 094 al modelo externo, 0 a Claude.
 2. **Desconectar los conectores clasicos (alto, cero codigo).** Con el panel, Parallel y OpenRouter MCP sobran. Quitarlos ahorra del orden de 9 000 a 20 000 tokens de entrada por turno. Indicarlo en `instalacion.md`.
 3. **Artifacts simples generados en el panel (alto).** Para calculadoras y formularios, el modelo `:free` genera el HTML y el panel lo renderiza en un iframe `srcdoc` aislado. Claude no escribe codigo (1 000 a 3 000 tokens por Artifact). Claude queda para Artifacts complejos.
 4. **Resumen de archivos en el panel (medio).** El alumno pega el texto en el panel y el modelo `:free` lo resume. El archivo no entra al contexto de Claude. Util para apuntes y textos largos; no aplica a PDF con imagenes.

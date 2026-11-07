@@ -94,3 +94,21 @@ Criterios por caso: ruta esperada, respuesta en espanol, maximo 180 palabras ant
 - Costo de la corrida: aproximadamente US$2.85 en API.
 
 Casos y runner: carpeta `bench/` del piloto (no incluida en el repo).
+
+## Prueba A/B de consumo de Claude (10 preguntas, Sonnet, `claude -p`)
+
+Mismas 10 preguntas con la Skill activa y sin ella. Se midieron los tokens de salida de Claude reportados por la API. Los MCP se simularon: la Skill asume que la herramienta externa respondio.
+
+| Condicion | Tokens de salida | De ellos, razonamiento | Texto visible | Palabras visibles |
+|---|---:|---:|---:|---:|
+| Sin Skill | 5 126 | 427 | 4 699 | 1 446 |
+| Con Skill 0.3.0 | 8 264 | 3 700 | 4 564 | 1 347 |
+
+Lectura:
+
+- El texto visible baja solo 3 % en tokens y 7 % en palabras: las respuestas base ya eran cortas.
+- El razonamiento sube casi 9 veces: el modelo deliberа la ruta y el formato del pie `Consumo`.
+- Ademas, la Skill agrega unas 1 300 palabras de instrucciones a la entrada de cada turno.
+- **Conclusion: en esta medicion la Skill no ahorra tokens de Claude; los aumenta.** La delegacion a OpenRouter no reduce el trabajo de Claude porque Claude igual lee el resultado externo y redacta la sintesis.
+- El valor demostrado del kit es didactico (ruta explicita, consumo externo reportado, fuentes), no de cuota. Para reducir consumo real: acortar `SKILL.md`, simplificar el pie `Consumo` y usar la Skill solo en tareas donde Claude escribiria mucho mas sin ella.
+- Limite: la medicion es en API con razonamiento habilitado; en claude.ai el razonamiento extendido puede estar apagado, lo que reduciria la diferencia pero no la invertiria.

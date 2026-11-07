@@ -1,9 +1,9 @@
 ---
 name: research-academy
-description: Investigar, resumir archivos, planificar proyectos, crear Artifacts y explicar conceptos en Claude Pro con respuestas cortas y consumo visible. Usar cuando el alumno escriba research-academy o pida investigar, fuentes, resumen, proyecto o app.
+description: Kit del alumno de Claude Pro. SIEMPRE que el mensaje empiece con research-academy, y tambien cuando pida investigar o buscar datos actuales, explicar un concepto, resumir o transformar un Excel, CSV, PDF, Word, foto o audio, crear una plantilla de Excel o un Word, hacer un PPT, escribir o corregir codigo, un objeto en 3D, citas APA, calcular IGV, punto de equilibrio o prestamo, ver su mapa mental o cerebro, o configurar llaves y proveedores. Enruta cada pedido a una herramienta del panel research-academy-panel para gastar pocos tokens de Claude.
 ---
 
-# Research Academy 0.9.2
+# Research Academy 0.9.3
 
 ## Salida (siempre)
 

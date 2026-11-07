@@ -11,7 +11,7 @@ Trabaja desde Claude chat como interfaz principal. Prioriza herramientas MCP ofi
 
 1. Define el objetivo de la consulta en una frase. No hagas research adicional cuando la respuesta ya este en el chat o en el proyecto.
 2. Para informacion web actual, si la herramienta de Parallel esta conectada, solicita UNA busqueda acotada (`web_search`). Prioriza 3 a 5 fuentes. Evita `web_fetch` masivo y descargas completas sin necesidad. Para preguntas verificables de opcion, puntuacion o si/no, utiliza `web_decisions` cuando sea apropiado.
-3. Para sintetizar o interpretar una entrada breve, considera OpenRouter MCP SOLO si esta conectado y el usuario ha pedido delegar a IA externa. Consulta los modelos gratuitos disponibles y utiliza exclusivamente un modelo con precio 0, por ejemplo `openrouter/free` si la herramienta acepta ese identificador. No hagas peticiones de pago. Si no puedes verificar que la llamada sera gratuita, solicita confirmacion o no la ejecutes.
+3. Para preguntas generales, explicaciones o sintesis de una entrada breve, usa OpenRouter MCP si esta conectado, sin esperar que el usuario lo pida (ver "Delegacion inteligente"). Consulta los modelos gratuitos disponibles y utiliza exclusivamente un modelo con precio 0, por ejemplo `openrouter/free` si la herramienta acepta ese identificador. No hagas peticiones de pago. Si no puedes verificar que la llamada sera gratuita, solicita confirmacion o no la ejecutes.
 4. OpenRouter MCP esta pensado para consultas y pruebas de modelos, no para garantizar investigaciones autonomas largas. Nunca finjas que puede leer una pagina por su URL si esa herramienta no ofrece dicha capacidad.
 5. Entrega una sintesis inicial de 250 a 500 palabras: 3 a 5 hallazgos, evidencia, URLs y alertas sobre vacios o contradicciones. No volcar paginas ni trazas completas al chat.
 6. Si el usuario pide un Artifact, construye una sola version funcional con datos ficticios o proporcionados por el usuario. No hagas consultas externas adicionales sin una necesidad clara.
@@ -28,3 +28,33 @@ Trabaja desde Claude chat como interfaz principal. Prioriza herramientas MCP ofi
 ## Cuando un MCP no funcione
 
 No simules su uso. Aclara que no esta disponible y ofrece realizar una respuesta limitada usando el contexto presente o las herramientas nativas de Claude. Consulta `references/instalacion.md` solo cuando se necesite solucionar la instalacion o autenticacion.
+
+## Delegacion inteligente y control de contexto
+
+Priorizar el procesamiento externo cuando aporte valor.
+
+### Seleccion de herramientas
+
+- Preguntas generales: OpenRouter con un modelo `:free`.
+- Informacion actualizada: Parallel Web Search.
+- Decisiones basadas en evidencia web: Parallel Web Decisions, cuando sea adecuado.
+- Creacion de Artifacts: Claude.
+
+### Optimizacion
+
+- Limitar las respuestas externas a 150 palabras.
+- Solicitar como maximo 350 tokens de salida cuando la herramienta lo permita.
+- No repetir investigaciones equivalentes.
+- No reproducir integramente respuestas externas cuando el usuario solo necesita una conclusion.
+- Utilizar un maximo de una llamada inicial.
+- Ampliar solamente cuando falte informacion.
+- Nunca seleccionar modelos de pago por defecto.
+- No afirmar que se ahorraron tokens sin medicion.
+
+### Calidad
+
+- Identificar el modelo externo utilizado.
+- No presentar afirmaciones no verificadas como hechos comprobados.
+- Verificar cifras y afirmaciones criticas usando fuentes confiables.
+- Si existen contradicciones, presentar una advertencia breve y concreta.
+- No ejecutar busquedas adicionales innecesarias.

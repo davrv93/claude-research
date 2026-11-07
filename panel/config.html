@@ -67,7 +67,7 @@ async function estadoOpenRouter() {
   const k = P.leerLlave('openrouter');
   if (!k) { $('or-estado').textContent = 'No conectado. Autoriza una vez; es gratis.'; return; }
   try {
-    const r = await fetch(`${OPENROUTER}/api/v1/key`, { headers: { Authorization: `Bearer ${k}` } });
+    const r = await P.fetchT(`${OPENROUTER}/api/v1/key`, { headers: { Authorization: `Bearer ${k}` } }, 15000);
     const d = (await r.json()).data || {}, q = d.free_model_daily_requests;
     $('or-estado').innerHTML = `<span class="ok">Conectado</span> (${escapar(P.enmascarar(k))}). ${q ? `Hoy: ${q.used} de ${q.limit} peticiones gratis usadas, quedan ${q.remaining}.` : ''}`;
   } catch (e) { $('or-estado').textContent = 'Conectado, pero no se pudo leer la cuota: ' + e.message; }
@@ -110,7 +110,7 @@ $('proveedores').addEventListener('click', async (e) => {
   const id = b.dataset.g || b.dataset.p || b.dataset.b; const est = $('est-' + id);
   if (b.dataset.g) { const v = $('k-' + id).value.trim(); if (!v) return; P.guardarLlave(id, v); $('k-' + id).value = ''; est.textContent = 'llave guardada ' + P.enmascarar(v); pintarOrdenes(); }
   if (b.dataset.b) { P.borrarLlave(id); est.textContent = 'sin llave'; pintarOrdenes(); }
-  if (b.dataset.p) { est.textContent = 'probando…'; const ids = await P.listarModelos(id, true); const r = await P.probar(id); est.innerHTML = r.ok ? `<span class="ok">responde</span> ${escapar(r.modelo)} en ${r.ms} ms · ${ids.length} modelos disponibles` : `<span class="mal">falla</span>: ${escapar(r.error)}${ids.length ? ` · modelos vistos: ${escapar(ids.slice(0, 6).join(', '))}` : ''}`; }
+  if (b.dataset.p) { b.disabled = true; est.textContent = 'probando…'; try { const r = await P.probar(id, (paso) => { est.textContent = paso; }); est.innerHTML = r.ok ? `<span class="ok">responde</span> ${escapar(r.modelo)} en ${r.ms} ms · ${r.modelos} modelos disponibles` : `<span class="mal">falla</span>: ${escapar(r.error)}`; } catch (e) { est.innerHTML = `<span class="mal">falla</span>: ${escapar(e.message)}`; } finally { b.disabled = false; } }
 });
 
 // ---- Orden por tarea ----

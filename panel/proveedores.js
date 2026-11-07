@@ -10,6 +10,14 @@
   const ORDEN_POR_DEFECTO = { codigo: ['gemini', 'mistral', 'groq', 'cerebras', 'openrouter'], texto: ['openrouter', 'gemini', 'groq', 'mistral', 'cerebras'], vision: ['gemini', 'openrouter', 'mistral'], audio: ['openrouter'] };
   const guardado = { leer(k) { try { return localStorage.getItem(k); } catch { return null; } }, escribir(k, v) { try { localStorage.setItem(k, v); } catch {} }, borrar(k) { try { localStorage.removeItem(k); } catch {} } };
 
+  // fetch con tiempo límite: ninguna llamada deja el panel colgado en «probando…».
+  async function fetchT(url, opts = {}, ms = 20000) {
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const t = ctl ? setTimeout(() => ctl.abort(), ms) : null;
+    try { return await fetch(url, ctl ? { ...opts, signal: ctl.signal } : opts); }
+    catch (e) { if (e && e.name === 'AbortError') throw Object.assign(new Error(`sin respuesta en ${Math.round(ms / 1000)} s`), { timeout: true }); throw Object.assign(new Error(`no se pudo conectar (${e.message}); si es la primera vez, puede ser el CSP del panel`), { red: true }); }
+    finally { if (t) clearTimeout(t); }
+  }
   const leerLlave = (id) => guardado.leer(PROVEEDORES[id]?.clave || '');
   const guardarLlave = (id, v) => guardado.escribir(PROVEEDORES[id].clave, String(v).trim());
   const borrarLlave = (id) => guardado.borrar(PROVEEDORES[id].clave);
@@ -31,7 +39,7 @@
     if (!forzar) { try { const c = JSON.parse(guardado.leer(clave) || 'null'); if (c && Date.now() - c.t < 86400000 && Array.isArray(c.ids)) return c.ids; } catch {} }
     const llave = leerLlave(proveedor); if (!llave) return [];
     try {
-      const r = await fetch(`${p.base}/models`, { headers: { Authorization: `Bearer ${llave}`, ...(p.extra || {}) } });
+      const r = await fetchT(`${p.base}/models`, { headers: { Authorization: `Bearer ${llave}`, ...(p.extra || {}) } }, 15000);
       if (!r.ok) return [];
       const j = await r.json();
       const ids = (j.data || j.models || []).map((m) => String(m.id || m.name || '').replace(/^models\//, '')).filter(Boolean);
@@ -62,8 +70,8 @@
     if (proveedor === 'openrouter') { cuerpo.usage = { include: true }; cuerpo.reasoning = { enabled: false }; }
     const cabeceras = { 'Content-Type': 'application/json', Authorization: `Bearer ${llave}`, ...(p.extra || {}) };
     const inicio = Date.now();
-    let r = await fetch(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) });
-    if (proveedor === 'openrouter' && r.status === 400) { cuerpo.reasoning = { exclude: true }; cuerpo.max_tokens = maxTokens + 2048; r = await fetch(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) }); }
+    let r = await fetchT(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) }, stream ? 120000 : 60000);
+    if (proveedor === 'openrouter' && r.status === 400) { cuerpo.reasoning = { exclude: true }; cuerpo.max_tokens = maxTokens + 2048; r = await fetchT(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) }, stream ? 120000 : 60000); }
     if (r.status === 404 && !modelo && !_reintento) { const nuevo = await elegirModelo(proveedor, tarea, true); if (nuevo !== mod) return llamar({ proveedor, tarea, modelo: nuevo, mensajes, maxTokens, temperatura, alTexto, stream, _reintento: true }); }
     if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(`${p.nombre} respondió ${r.status}: ${typeof j.error === 'string' ? j.error : j.error?.message || ''} (modelo ${mod})`.trim()), { status: r.status }); }
     let texto = '', usage = {}, finish;
@@ -97,8 +105,8 @@
     throw new Error('Todos los proveedores fallaron. ' + errores.join(' | '));
   }
 
-  async function probar(id) {
-    try { const r = await llamar({ proveedor: id, tarea: 'texto', mensajes: [{ role: 'user', content: 'Responde solo: ok' }], maxTokens: 8, stream: false }); return { ok: true, modelo: r.modelo, ms: r.ms, texto: r.texto.slice(0, 20) }; }
+  async function probar(id, alPaso) {
+    try { alPaso?.('listando modelos…'); const ids = await listarModelos(id, true); const mod = await elegirModelo(id, 'texto'); alPaso?.(`probando ${mod}…`); const r = await llamar({ proveedor: id, tarea: 'texto', modelo: mod, mensajes: [{ role: 'user', content: 'Responde solo: ok' }], maxTokens: 8, stream: false }); return { ok: true, modelo: r.modelo, ms: r.ms, texto: r.texto.slice(0, 20), modelos: ids.length }; }
     catch (e) { return { ok: false, error: e.message }; }
   }
 
@@ -115,5 +123,5 @@
     if (cfg.cerebro_auto != null) guardado.escribir('ra-cerebro-auto', cfg.cerebro_auto);
   }
 
-  global.RA_prov = { listarModelos, elegirModelo, PROVEEDORES, ORDEN_POR_DEFECTO, leerLlave, guardarLlave, borrarLlave, configurados, enmascarar, orden, guardarOrden, llamar, llamarConRespaldo, probar, exportarConfig, importarConfig, guardado };
+  global.RA_prov = { fetchT, listarModelos, elegirModelo, PROVEEDORES, ORDEN_POR_DEFECTO, leerLlave, guardarLlave, borrarLlave, configurados, enmascarar, orden, guardarOrden, llamar, llamarConRespaldo, probar, exportarConfig, importarConfig, guardado };
 })(typeof window !== 'undefined' ? window : globalThis);

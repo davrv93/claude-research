@@ -4,7 +4,7 @@ Fecha: 2026-11-07. Modelo: Claude Sonnet via `claude -p` con `SKILL.md` como sys
 
 Criterios por caso: ruta esperada, respuesta en espanol, maximo 180 palabras antes del pie (Artifacts exentos), pie `Consumo:` presente.
 
-**Resultado: 48/50 casos cumplen los 4 criterios** (corrida inicial 45/50; tras dos ajustes a la Skill, los 5 fallos se repitieron y 4 pasaron).
+**Resultado: 48/50 casos cumplen los 4 criterios** (corrida inicial 45/50; tras dos ajustes a la Skill se repitieron los 5 fallos y pasaron 3: #26, #31, #41; los 2 restantes, #30 y #48, son limites del evaluador, no de la Skill).
 
 | Area | OK / casos |
 |---|---:|

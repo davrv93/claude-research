@@ -33,7 +33,7 @@ Hecho: almacén en el servidor por frase clave, guardado automático con tema y 
 
 ## Documentos (0.7.0, pendiente de probar en claude.ai)
 
-Hecho: panel Documentos con descubrimiento de Excel/CSV (estadisticas, formulas, errores), PDF y Word, analisis con el modelo :free, permiso explicito, nota en el cerebro, "Enviar a Claude" con contexto compacto y regla en la Skill para confirmar y preguntar la accion. Probado: descubrimiento con SheetJS en Node, arranque con DOM simulado, herramienta y recurso por MCP. Falta probar en claude.ai: soltar archivo en el iframe, carga de SheetJS/pdf.js/mammoth bajo el CSP, pdf.js sin worker, envio al chat. Siguientes: PPT (PptxGenJS + enlace de descarga desde el servidor), anadir seccion/referencias a Word (JSZip sobre document.xml), Excel corregido (SheetJS).
+Hecho: panel Documentos con descubrimiento de Excel/CSV (estadisticas, formulas, errores), PDF y Word, analisis con el modelo :free, permiso explicito, nota en el cerebro, "Enviar a Claude" con contexto compacto y regla en la Skill para confirmar y preguntar la accion. Probado: descubrimiento con SheetJS en Node, arranque con DOM simulado, herramienta y recurso por MCP. Falta probar en claude.ai: soltar archivo en el iframe, carga de SheetJS/pdf.js/mammoth bajo el CSP, pdf.js sin worker, envio al chat. PPT hecho en 0.8.0 (guion del modelo, graficos calculados en el panel, descarga por enlace del servidor; probado en Node: 164 KB, 7 laminas, subida y descarga identicas). Siguientes: anadir seccion/referencias a Word (JSZip sobre document.xml), Excel corregido (SheetJS). Servidor desplegado con 0.7.1; redesplegar para 0.8.0.
 
 ## Hallazgos que cambian las prioridades
 

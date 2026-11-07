@@ -85,4 +85,5 @@ Segunda interfaz, `ui://research-academy/docs` (`docs.html`), herramienta `docs_
 - PDF: pdf.js, texto por página; avisa si parece escaneado (sin OCR). Word: mammoth, texto y títulos. Textos mayores a 60 000 caracteres se resumen por partes.
 - El modelo `:free` entrega 3 a 6 hallazgos con cifras exactas y una línea `TEMA:`. Permiso explícito (recordado) antes de enviar contenido.
 - "Enviar a Claude" manda un contexto compacto (~400 tokens): archivo, estructura, hallazgos, acción pedida e instrucción, más la indicación de confirmar y preguntar la acción si falta. Se guarda una nota tipo `documento` en el cerebro.
-- Pendiente (siguientes pasos): generar PPT, añadir sección o referencias a un Word, Excel corregido.
+- "Generar aquí → Generar PPT" (0.8.0): el modelo `:free` devuelve un guion JSON (título, láminas con viñetas y, si aporta, un gráfico que nombra hoja, columna categoría y columna valor). El panel calcula las series con las filas del archivo y construye el `.pptx` con PptxGenJS (portada, láminas con viñetas y gráfico nativo, cierre). El archivo se sube a `POST /archivo` y se descarga por enlace (`GET /archivo/:id/:nombre`), 24 horas, tope 10 MB, solo .pptx/.docx/.xlsx/.csv/.md/.txt/.json. Limpieza horaria. `archivos.mjs`.
+- Pendiente: añadir sección o referencias a un Word, Excel corregido.

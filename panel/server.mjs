@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express from 'express';
 import { buildServer } from './mcp.mjs';
 import { estadoAlmacen, guardarCerebro, leerCerebro, MAX_BYTES } from './cerebro.mjs';
+import { guardarArchivo, limpiarVencidos, MAX_ARCHIVO, rutaArchivo } from './archivos.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -64,6 +65,33 @@ app.put('/cerebro/:id', express.json({ limit: MAX_BYTES + 1024 }), async (req, r
   catch (e) { res.status(e.status || (e.type === 'entity.too.large' ? 413 : 500)).json({ error: e.message }); }
 });
 app.get('/salud', async (_req, res) => res.json({ ok: true, almacen: await estadoAlmacen() }));
+
+// ---- Archivos temporales (PPT, Word, Excel generados por el panel): 24 horas, 10 MB, enlace de descarga.
+app.use('/archivo', (req, res, next) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, X-Nombre');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+}, limitar);
+app.post('/archivo', express.raw({ type: () => true, limit: MAX_ARCHIVO + 1024 }), async (req, res) => {
+  try {
+    const nombre = decodeURIComponent(String(req.get('X-Nombre') || 'archivo.bin'));
+    const r = await guardarArchivo(nombre, Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0));
+    res.json({ ...r, url: `${process.env.CEREBRO_URL || (process.env.SERVER_URL || '').replace(/\/mcp\/?$/, '')}/archivo/${r.id}/${encodeURIComponent(r.nombre)}` });
+  } catch (e) { res.status(e.status || (e.type === 'entity.too.large' ? 413 : 500)).json({ error: e.message }); }
+});
+app.get('/archivo/:id/:nombre', async (req, res) => {
+  try {
+    const a = await rutaArchivo(req.params.id, req.params.nombre);
+    res.set('Content-Type', a.tipo);
+    res.set('Content-Disposition', `attachment; filename="${a.nombre}"; filename*=UTF-8''${encodeURIComponent(a.nombre)}`);
+    res.set('Cache-Control', 'private, max-age=0');
+    res.sendFile(a.ruta);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+limpiarVencidos().catch(() => {});
+setInterval(() => limpiarVencidos().catch(() => {}), 60 * 60 * 1000).unref();
 
 const noPermitido = (_req, res) =>
   res.status(405).set('Allow', 'POST').json({ jsonrpc: '2.0', error: { code: -32000, message: 'Método no permitido: este servidor no usa sesiones.' }, id: null });

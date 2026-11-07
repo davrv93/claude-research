@@ -122,6 +122,19 @@
     <p class="sync" id="sync"></p>
   </section>
 
+  <section class="caja" id="accion-seccion" hidden>
+    <h2>Generar aquí</h2>
+    <p class="nota" style="margin-top:0" id="accion-nota">Presentación resumen a partir del análisis y las cifras del archivo. Gráficos con datos calculados en el panel, texto del modelo gratuito. Sin gastar Claude.</p>
+    <div class="fila">
+      <label class="check">Láminas <input id="n-laminas" type="number" min="3" max="12" value="6" style="width:4.5rem"></label>
+      <label class="check">Tono <select id="tono"><option value="ejecutivo">ejecutivo</option><option value="academico">académico</option><option value="sencillo">sencillo</option></select></label>
+      <button class="primario" id="btn-ppt">Generar PPT</button>
+    </div>
+    <div class="estado" id="estado-ppt" hidden><span class="punto"></span><span id="estado-ppt-texto"></span></div>
+    <div class="error" id="error-ppt" hidden></div>
+    <p class="nota" id="resultado-ppt" hidden></p>
+  </section>
+
   <section class="caja">
     <h2>Consumo</h2>
     <div class="medidor" id="medidor-consulta"></div>
@@ -132,6 +145,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script id="descubrir">
 // Descubrimiento determinista de un libro Excel/CSV ya leído con SheetJS. Sin modelo. Reutilizable en Node para pruebas.
 window.RA_descubrir = (function () {
@@ -199,6 +213,61 @@ window.RA_descubrir = (function () {
     return t.length > maxChars ? t.slice(0, maxChars) + '\n…' : t;
   }
   return { libro, textoLibro, muestraCsv };
+})();
+</script>
+<script id="ppt">
+// Construye la presentación con PptxGenJS a partir de un guion (JSON del modelo) y los datos del descubrimiento.
+// Las cifras de los gráficos se calculan aquí, nunca las inventa el modelo.
+window.RA_ppt = (function () {
+  const num = (v) => (typeof v === 'number' ? v : Number(String(v ?? '').replace(/[^\d.-]/g, '')));
+  function serie(hoja, catCol, valCol, max = 8) {
+    const ci = hoja.cabecera.indexOf(catCol), vi = hoja.cabecera.indexOf(valCol);
+    if (ci < 0 || vi < 0) return null;
+    const acc = new Map();
+    for (const f of hoja.muestra) { const k = String(f[ci] ?? '').trim(); const v = num(f[vi]); if (!k || !Number.isFinite(v)) continue; acc.set(k, (acc.get(k) || 0) + v); }
+    const pares = [...acc].sort((a, b) => b[1] - a[1]).slice(0, max);
+    return pares.length ? { labels: pares.map((p) => p[0].slice(0, 24)), values: pares.map((p) => Math.round(p[1] * 100) / 100) } : null;
+  }
+  function construir(PptxGenJS, guion, desc, meta) {
+    const pptx = new PptxGenJS();
+    pptx.layout = 'LAYOUT_16x9';
+    pptx.author = 'Research Academy'; pptx.title = guion.titulo || meta.nombre;
+    const C = { fondo: 'FFFFFF', tinta: '17161F', gris: '5D5A6B', acento: '1F7A4D', suave: 'E8F3EC' };
+    const fuente = 'Calibri';
+    const portada = pptx.addSlide();
+    portada.background = { color: C.acento };
+    portada.addText(guion.titulo || meta.nombre, { x: 0.6, y: 1.6, w: 8.8, h: 1.4, fontFace: fuente, fontSize: 34, bold: true, color: 'FFFFFF', valign: 'bottom' });
+    portada.addText(guion.subtitulo || '', { x: 0.6, y: 3.05, w: 8.8, h: 0.8, fontFace: fuente, fontSize: 16, color: 'E6F2EA' });
+    portada.addText(`${meta.nombre} · ${meta.fecha}`, { x: 0.6, y: 4.7, w: 8.8, h: 0.4, fontFace: fuente, fontSize: 11, color: 'D0E8D8' });
+    const laminas = (guion.laminas || []).slice(0, 12);
+    laminas.forEach((l, i) => {
+      const s = pptx.addSlide();
+      s.background = { color: C.fondo };
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 0.12, fill: { color: C.acento }, line: { color: C.acento } });
+      s.addText(String(l.titulo || `Lámina ${i + 1}`).slice(0, 90), { x: 0.5, y: 0.3, w: 9, h: 0.8, fontFace: fuente, fontSize: 24, bold: true, color: C.tinta });
+      let datos = null;
+      const g = l.grafico;
+      if (g && g.columna_categoria && g.columna_valor && desc && desc.hojas) {
+        const hoja = desc.hojas.find((h) => h.nombre === g.hoja) || desc.hojas[0];
+        datos = serie(hoja, g.columna_categoria, g.columna_valor);
+      }
+      const vinetas = (l.vinetas || []).slice(0, 6).map((v) => ({ text: String(v).slice(0, 160), options: { bullet: true, breakLine: true } }));
+      const anchoTexto = datos ? 4.4 : 9;
+      if (vinetas.length) s.addText(vinetas, { x: 0.5, y: 1.25, w: anchoTexto, h: 3.6, fontFace: fuente, fontSize: datos ? 14 : 16, color: C.tinta, valign: 'top', paraSpaceAfter: 6 });
+      if (datos) {
+        const tipo = g.tipo === 'line' ? pptx.ChartType.line : g.tipo === 'pie' ? pptx.ChartType.pie : pptx.ChartType.bar;
+        s.addChart(tipo, [{ name: g.columna_valor, labels: datos.labels, values: datos.values }], { x: 5.1, y: 1.2, w: 4.5, h: 3.7, chartColors: [C.acento, '5A49D6', 'C2622D', '2A7FBF', '8E44AD', 'D4A017', '1F7A4D', '777777'], showLegend: g.tipo === 'pie', showValue: g.tipo !== 'line', dataLabelFontSize: 9, catAxisLabelFontSize: 9, valAxisLabelFontSize: 9, showTitle: true, title: `${g.columna_valor} por ${g.columna_categoria}`, titleFontSize: 11 });
+      }
+      s.addText(`${i + 1} / ${laminas.length}`, { x: 8.6, y: 5.15, w: 1, h: 0.3, fontFace: fuente, fontSize: 9, color: C.gris, align: 'right' });
+    });
+    const cierre = pptx.addSlide();
+    cierre.background = { color: C.suave };
+    cierre.addText('Cierre', { x: 0.5, y: 0.4, w: 9, h: 0.7, fontFace: fuente, fontSize: 22, bold: true, color: C.tinta });
+    cierre.addText((guion.cierre || []).slice(0, 5).map((v) => ({ text: String(v).slice(0, 160), options: { bullet: true, breakLine: true } })), { x: 0.5, y: 1.2, w: 9, h: 3, fontFace: fuente, fontSize: 15, color: C.tinta, valign: 'top' });
+    cierre.addText(`Generado con Research Academy Documentos a partir de ${meta.nombre}. Cifras calculadas sobre el archivo; redacción de ${meta.modelo}. Verificar antes de presentar.`, { x: 0.5, y: 4.5, w: 9, h: 0.6, fontFace: fuente, fontSize: 9, color: C.gris });
+    return pptx;
+  }
+  return { construir, serie };
 })();
 </script>
 <script type="module">
@@ -358,6 +427,7 @@ async function analizar() {
     estado.analisis = r.texto; $('respuesta').textContent = r.texto; $('respuesta').classList.remove('flujo');
     $('uso').textContent = `entrada ${fmt(r.usage.prompt_tokens || 0)} · salida ${fmt(r.usage.completion_tokens || 0)} · costo $${(r.usage.cost || 0).toFixed(4)}`;
     armarContexto();
+    $('accion-seccion').hidden = false;
     await guardarEnCerebro();
   } catch (e) { $('respuesta').classList.remove('flujo'); mostrarError('error', 'No se pudo analizar: ' + e.message); }
   finally { estado.enCurso = false; mostrarEstado(''); }
@@ -377,6 +447,60 @@ async function enviarAClaude() {
     if (caps.message && app.sendMessage) { await app.sendMessage({ role: 'user', content: [{ type: 'text', text: estado.contexto }] }); nota.textContent = `Enviado al chat (~${fmt(estado.contexto.length / 3.8)} tokens de Claude). Claude confirmará lo entendido y preguntará la acción si falta.`; sumar({ claude: estado.contexto.length / 3.8 }); }
     else { await navigator.clipboard.writeText(estado.contexto); nota.textContent = 'Este host no permite enviar al chat. Contexto copiado: pégalo en el chat.'; }
   } catch (e) { nota.textContent = 'No se pudo enviar: ' + e.message; }
+}
+
+// ---- PPT: guion del modelo + gráficos con cifras del archivo + descarga por enlace del servidor ----
+function columnasDisponibles() {
+  const a = estado.archivo; if (!a || a.tipo !== 'tabla') return '';
+  return a.desc.hojas.map((h) => `Hoja «${h.nombre}»: categorías = [${h.columnas.filter((c) => c.tipo === 'texto' && c.distintos <= 40).map((c) => c.nombre).join(', ')}]; valores numéricos = [${h.columnas.filter((c) => c.tipo === 'numero').map((c) => c.nombre).join(', ')}]`).join('\n');
+}
+async function guionPpt() {
+  const a = estado.archivo, n = Math.min(12, Math.max(3, Number($('n-laminas').value) || 6)), tono = $('tono').value;
+  const cols = columnasDisponibles();
+  const sistema = `Devuelve SOLO un JSON válido con esta forma: {"titulo":"...","subtitulo":"...","laminas":[{"titulo":"...","vinetas":["...","..."],"grafico":{"hoja":"nombre de hoja","tipo":"bar|line|pie","columna_categoria":"...","columna_valor":"..."}}],"cierre":["...","..."]}. Español, tono ${tono}. Exactamente ${n} láminas, 2 a 5 viñetas cortas cada una con cifras del análisis. "grafico" solo si hay columnas disponibles y aporta; usa nombres de columna EXACTOS de la lista; si no aplica, omite "grafico". Sin texto fuera del JSON.`;
+  const usuario = `Instrucción del alumno: ${estado.peticion.instruccion || 'presentación resumen'}\n\nArchivo: ${a.nombre}\n${a.resumen}\n${cols ? `\nColumnas disponibles para gráficos:\n${cols}` : ''}\n\nAnálisis previo:\n${estado.analisis.slice(0, 2500)}`;
+  const r = await llamarChat([{ role: 'system', content: sistema }, { role: 'user', content: usuario }], null, 1800);
+  const m = r.texto.match(/\{[\s\S]*\}/); if (!m) throw new Error('el modelo no devolvió un guion válido');
+  const g = JSON.parse(m[0]); if (!Array.isArray(g.laminas) || !g.laminas.length) throw new Error('guion sin láminas');
+  return g;
+}
+async function subirArchivo(nombre, blob) {
+  if (!CEREBRO_URL || CEREBRO_URL.startsWith('__')) throw new Error('sin servidor para alojar el archivo');
+  const r = await fetch(`${CEREBRO_URL}/archivo`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Nombre': encodeURIComponent(nombre) }, body: blob });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `servidor respondió ${r.status}`);
+  return j;
+}
+function estadoPpt(t) { $('estado-ppt').hidden = !t; $('estado-ppt-texto').textContent = t || ''; }
+async function generarPpt() {
+  if (!estado.archivo || estado.enCurso) return;
+  if (!llave()) { $('conectar').hidden = false; return; }
+  if (!window.PptxGenJS) return mostrarError('error-ppt', 'La librería de presentaciones no cargó. Recarga el panel.');
+  estado.enCurso = true; $('btn-ppt').disabled = true; mostrarError('error-ppt', ''); $('resultado-ppt').hidden = true;
+  try {
+    estadoPpt('Armando el guion con el modelo gratuito…');
+    const guion = await guionPpt();
+    estadoPpt('Construyendo la presentación…');
+    const meta = { nombre: estado.archivo.nombre, fecha: new Date().toISOString().slice(0, 10), modelo: estado.peticion.modelo };
+    const pptx = RA_ppt.construir(window.PptxGenJS, guion, estado.archivo.desc, meta);
+    const blob = await pptx.write({ outputType: 'blob' });
+    const nombre = `${estado.archivo.nombre.replace(/\.[^.]+$/, '')}-resumen.pptx`;
+    estadoPpt('Subiendo para la descarga…');
+    const s = await subirArchivo(nombre, blob);
+    sumar({ evitado: blob.size / 3.8 });
+    $('resultado-ppt').hidden = false;
+    $('resultado-ppt').innerHTML = `Listo: <a class="enlace" href="${escapar(s.url)}" target="_blank" rel="noopener">${escapar(s.nombre)}</a> (${fmt(s.bytes / 1024)} KB, ${guion.laminas.length + 2} láminas, disponible 24 h). Revísalo antes de presentar.`;
+    try { if (app.openLink) await app.openLink({ url: s.url }); } catch {}
+    estado.ultimoPpt = s.url;
+    await anotarEnCerebro(`PPT generado: ${s.url}`);
+  } catch (e) { mostrarError('error-ppt', 'No se pudo generar: ' + e.message); }
+  finally { estado.enCurso = false; $('btn-ppt').disabled = false; estadoPpt(''); }
+}
+async function anotarEnCerebro(linea) {
+  try {
+    let notas = JSON.parse(guardado.leer(CLAVE_NOTAS) || '[]');
+    const n = notas.find((x) => x.modo === 'documento' && x.pregunta.startsWith(estado.archivo.nombre));
+    if (n) { n.respuesta += `\n\n${linea}`; n.actualizado = new Date().toISOString(); guardado.escribir(CLAVE_NOTAS, JSON.stringify(notas)); }
+  } catch {}
 }
 
 // ---- Cerebro: misma frase y mismo almacén que el panel Research ----
@@ -410,7 +534,7 @@ async function procesar(f) {
 }
 
 // ---- Host ----
-const app = new App({ name: 'research-academy-docs', version: '0.1.0' });
+const app = new App({ name: 'research-academy-docs', version: '0.2.0' });
 app.ontoolinput = (p) => { const a = p?.arguments || {}; estado.entradaChars = JSON.stringify(a).length; if (a.instruccion) $('instruccion').textContent = a.instruccion; if (a.accion) $('accion').value = a.accion; };
 app.ontoolresult = (r) => {
   const sc = r?.structuredContent || {}; estado.salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
@@ -430,6 +554,7 @@ $('btn-autorizar').addEventListener('click', autorizar); $('btn-canjear').addEve
 $('btn-claude').addEventListener('click', enviarAClaude);
 $('btn-copiar').addEventListener('click', async () => { armarContexto(); try { await navigator.clipboard.writeText(estado.contexto); $('btn-copiar').textContent = 'Copiado'; } catch { $('btn-copiar').textContent = 'No se pudo copiar'; } setTimeout(() => ($('btn-copiar').textContent = 'Copiar contexto'), 1500); });
 $('btn-reanalizar').addEventListener('click', analizar);
+$('btn-ppt').addEventListener('click', generarPpt);
 $('permiso').checked = (guardado.leer(CLAVE_PERMISO) ?? '1') === '1'; $('permiso').addEventListener('change', () => guardado.escribir(CLAVE_PERMISO, $('permiso').checked ? '1' : '0'));
 $('accion').addEventListener('change', () => { estado.peticion.accion = $('accion').value; });
 pintarMedidor();

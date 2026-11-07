@@ -13,14 +13,17 @@ import { buscarNotas, codigoLectura, idDeFrase, leerCerebro, leerPorCodigo, resu
 const AQUI = dirname(fileURLToPath(import.meta.url));
 export const PANEL_URI = 'ui://research-academy/panel';
 export const DOCS_URI = 'ui://research-academy/docs';
+export const CONFIG_URI = 'ui://research-academy/config';
+export const CODIGO_URI = 'ui://research-academy/codigo';
+export const TRES_URI = 'ui://research-academy/3d';
 export const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
-export const VERSION = '0.11.0';
+export const VERSION = '0.12.0';
 
 // Metadatos de la interfaz: a qué dominios puede conectarse el panel y de dónde carga módulos.
 export function metaUi() {
   const ui = {
     csp: {
-      connectDomains: ['https://openrouter.ai', 'https://mcp.parallel.ai', ...(cerebroUrl() ? [new URL(cerebroUrl()).origin] : [])],
+      connectDomains: ['https://openrouter.ai', 'https://mcp.parallel.ai', 'https://generativelanguage.googleapis.com', 'https://api.groq.com', 'https://api.cerebras.ai', 'https://api.mistral.ai', ...(cerebroUrl() ? [new URL(cerebroUrl()).origin] : [])],
       resourceDomains: ['https://unpkg.com', 'https://cdnjs.cloudflare.com', ...(cerebroUrl() ? [new URL(cerebroUrl()).origin] : [])],
     },
     permissions: { clipboardWrite: {} },
@@ -247,6 +250,56 @@ export function buildServer() {
       return { content: [{ type: 'text', text: c.notas.length ? `Código de lectura: ${codigoLectura(id)} (${c.notas.length} notas). Quien lo tenga puede leer, no modificar. Se usa en el panel Research («Ver cerebro compartido») o con cerebro_buscar(codigo_lectura).` : 'Ese cerebro no tiene notas todavía.' }] };
     },
   );
+
+  registerAppTool(
+    server,
+    'configurar',
+    {
+      title: 'Configuración del kit',
+      description: 'Abre el panel Configuración: autorizar OpenRouter, guardar llaves de Gemini, Groq, Cerebras o Mistral (solo en el navegador del alumno), orden de proveedores por tarea, frase clave del cerebro y permisos. Úsalo cuando el alumno pida configurar, conectar un proveedor, poner su llave, o cuando otro panel diga que falta configuración. Nunca pidas la llave en el chat. ' + NO_REPETIR.replace('Listo, revisa el panel.', 'Listo, configura en el panel.'),
+      inputSchema: {},
+      _meta: { ui: { resourceUri: CONFIG_URI } },
+    },
+    async () => ({ content: [{ type: 'text', text: 'Panel Configuración abierto. Responde solo: "Listo, configura en el panel; las llaves se pegan ahí, nunca en el chat." más el pie Consumo.' }], structuredContent: { modo: 'config' } }),
+  );
+
+  registerAppTool(
+    server,
+    'codigo',
+    {
+      title: 'Código con proveedores gratuitos',
+      description: 'Abre el panel Código: escribir, corregir un error, explicar, revisar, escribir tests o convertir código con Gemini, Mistral, Groq, Cerebras u OpenRouter (según lo configurado), con vista previa de HTML y ejecución de JavaScript. Para snippets, errores y ejercicios. Arquitectura, refactors grandes o revisión de seguridad: hazlos tú en el chat. ' + NO_REPETIR,
+      inputSchema: {
+        accion: z.enum(['escribir', 'corregir', 'explicar', 'revisar', 'tests', 'convertir']).default('escribir'),
+        lenguaje: z.enum(['javascript', 'typescript', 'html', 'css', 'python', 'sql', 'java', 'php', 'bash', 'react', 'otro']).default('javascript'),
+        instruccion: z.string().default('').describe('Qué necesita el alumno, en sus palabras.'),
+        codigo: z.string().max(6000).default('').describe('Código o error que pegó el alumno, si es corto; si es largo, que lo pegue en el panel.'),
+      },
+      _meta: { ui: { resourceUri: CODIGO_URI } },
+    },
+    async ({ accion, lenguaje, instruccion, codigo }) => ({ content: [{ type: 'text', text: `Panel Código abierto (${accion}, ${lenguaje}). Responde solo: 'Listo, revisa el panel.' más el pie Consumo.` }], structuredContent: { modo: 'codigo', accion, lenguaje, instruccion, codigo } }),
+  );
+
+  registerAppTool(
+    server,
+    'render3d',
+    {
+      title: 'Objeto en 3D',
+      description: 'Abre el panel 3D: a partir de una descripción o de una foto de referencia que el alumno suelta en el panel, un modelo gratuito compone el objeto con primitivas y el panel lo renderiza en three.js con órbita, animación (GSAP), edición de piezas, y descarga PNG y GLB. ' + NO_REPETIR,
+      inputSchema: {
+        descripcion: z.string().default('').describe('El objeto a modelar, en palabras del alumno; vacío si va a subir una foto.'),
+        estilo: z.enum(['realista', 'lowpoly', 'juguete', 'esquema']).default('realista'),
+      },
+      _meta: { ui: { resourceUri: TRES_URI } },
+    },
+    async ({ descripcion, estilo }) => ({ content: [{ type: 'text', text: `Panel 3D abierto${descripcion ? ` para «${descripcion.slice(0, 60)}»` : ''}. Responde solo: 'Listo, revisa el panel.' más el pie Consumo.` }], structuredContent: { modo: '3d', descripcion, estilo } }),
+  );
+
+  for (const [uri, archivo, nombre, desc] of [[CONFIG_URI, 'config.html', 'Configuración de Research Academy', 'Llaves, proveedores y preferencias, solo en el navegador del alumno.'], [CODIGO_URI, 'codigo.html', 'Panel Código de Research Academy', 'Código con proveedores gratuitos, vista previa y ejecución.'], [TRES_URI, 'tres.html', 'Panel 3D de Research Academy', 'Objetos en 3D con three.js a partir de texto o foto.']]) {
+    registerAppResource(server, nombre, uri, { description: desc, mimeType: RESOURCE_MIME_TYPE, _meta: { ui: metaUi() } }, async () => ({
+      contents: [{ uri, mimeType: RESOURCE_MIME_TYPE, text: (await readFile(join(AQUI, archivo), 'utf8')).split('__CEREBRO_URL__').join(cerebroUrl()), _meta: { ui: metaUi() } }],
+    }));
+  }
 
   registerAppResource(
     server,

@@ -3,7 +3,7 @@ name: research-academy
 description: Investigar, resumir archivos, planificar proyectos, crear Artifacts y explicar conceptos en Claude Pro con respuestas cortas y consumo visible. Usar cuando el alumno escriba research-academy o pida investigar, fuentes, resumen, proyecto o app.
 ---
 
-# Research Academy 0.8
+# Research Academy 0.9
 
 ## Salida (siempre)
 
@@ -25,6 +25,9 @@ Si el conector `research-academy-panel` esta disponible, es obligatorio: actuali
 | Actualidad, precios, rankings, normativa, versiones, estadisticas | Panel: `investigar(pregunta, consultas)` con 2 o 3 consultas de 3 a 6 palabras |
 | App, calculadora, tablero, formulario | Artifact, una version funcional, datos del alumno o ficticios |
 | Crear un Excel o Word nuevo (plantilla, informe, carta, solicitud) | Panel: `docs_crear(tipo, instruccion)` |
+| Codigo: snippet, corregir error, explicar, revisar, tests, convertir | Panel: `codigo(accion, lenguaje, instruccion, codigo)`. Arquitectura, refactor grande o seguridad: directo en Claude |
+| Objeto en 3D desde texto o foto (three.js, GSAP) | Panel: `render3d(descripcion, estilo)` |
+| Configurar llaves, proveedores (Gemini, Groq, Cerebras, Mistral), frase del cerebro | Panel: `configurar()`. Nunca pidas ni aceptes una llave en el chat; si el alumno la pega, dile que la borre y la ponga en el panel |
 | Cita o bibliografia de URLs | Panel: `citar(urls)` |
 | IGV, punto de equilibrio, prestamo, margen | Panel: `calcular(tipo)` |
 | Compartir el cerebro con docente o asesor | `cerebro_compartir(frase_clave)`; leer uno ajeno: `cerebro_buscar(codigo_lectura, tema)` |

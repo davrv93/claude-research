@@ -39,6 +39,10 @@ Hecho: panel Documentos con descubrimiento de Excel/CSV (estadisticas, formulas,
 
 Hecho: los 18 pedidos del mapa (https://claude.ai/artifact/BA2BVnvLptKv3FhVjn7yDM). Probado en Node: funciones puras (Excel y Word desde cero, comparar, limpiar, mensajes, serie, PDF), herramientas MCP (9), codigo de lectura, zip, docs-extra.js servido, recursos con URLs inyectadas. Falta probar en claude.ai: carga de docx/jsPDF/docs-extra bajo el CSP, OCR y audio con los modelos gratuitos (formato de audio aceptado por OpenRouter), calculadoras y citas en el panel Research, plantillas-carrera como skill. Servidor desplegado con 0.11.0.
 
+## Configuración, Código y 3D (0.12.0, pendiente de probar en claude.ai)
+
+Hecho: proveedores.js con Gemini, Mistral, Groq, Cerebras y OpenRouter; panel Configuración; panel Código (vista previa en iframe aislado, worker JS); panel 3D (three.js por import map, GSAP, GLB/PNG). Probado: 12 pruebas de proveedores con fetch simulado, 12 herramientas MCP, 5 recursos, estáticos servidos, arranque de los 3 paneles con DOM simulado. Falta en claude.ai: import map y modulos ESM de three bajo el CSP del iframe (si falla, cambiar a carga dinamica del build UMD r158), iframe srcdoc con sandbox dentro del panel, Web Worker desde blob, CORS real de Gemini con llave, calidad de las escenas 3D del modelo gratuito. Pendiente de diseño: app_generar con reglas-kit en el servidor (el kit es privado; copiar plantillas/ y ejemplo/ sin node_modules al contenedor en el despliegue, no al repo).
+
 ## Hallazgos que cambian las prioridades
 
 Medido el 2026-11-07 contra los servidores reales:

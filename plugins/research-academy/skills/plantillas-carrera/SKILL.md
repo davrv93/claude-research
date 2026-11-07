@@ -36,6 +36,8 @@ Cada atajo nombra la herramienta del panel que lo resuelve. Confirma en una line
 - Clase grabada: `docs_analizar` con el audio (transcripcion y resumen).
 
 ## Software y datos
+- Snippet, error, tests, convertir lenguaje: `codigo`.
+- Maqueta 3D de un producto o pieza: `render3d`.
 - Explicar un concepto: `delegar`.
 - Version o API actual de una libreria: `investigar`.
 - Limpiar un CSV: `docs_analizar(accion: "limpiar")`.

@@ -11,7 +11,7 @@ H=ubuntu@3.151.56.55
 URL=https://jmd-learn.online/research-academy/mcp
 node probar-stdio.mjs >/dev/null
 ssh -i "$LLAVE" $H 'mkdir -p ~/research-academy/build'
-scp -q -i "$LLAVE" Dockerfile .dockerignore package.json package-lock.json mcp.mjs server.mjs cerebro.mjs archivos.mjs panel.html docs.html docs-extra.js nginx.conf $H:research-academy/build/
+scp -q -i "$LLAVE" Dockerfile .dockerignore package.json package-lock.json mcp.mjs server.mjs cerebro.mjs archivos.mjs panel.html docs.html docs-extra.js proveedores.js comun.css config.html codigo.html tres.html nginx.conf $H:research-academy/build/
 ssh -i "$LLAVE" $H URL="$URL" bash -s <<'REMOTO'
 set -euo pipefail
 cd ~/research-academy/build

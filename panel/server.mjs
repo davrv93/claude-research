@@ -67,6 +67,14 @@ app.get('/docs-extra.js', async (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.send(await readFile(join(dirname(fileURLToPath(import.meta.url)), 'docs-extra.js'), 'utf8'));
 });
+app.get('/proveedores.js', async (_req, res) => {
+  res.set('Content-Type', 'application/javascript; charset=utf-8'); res.set('Access-Control-Allow-Origin', '*'); res.set('Cache-Control', 'public, max-age=300');
+  res.send(await readFile(join(dirname(fileURLToPath(import.meta.url)), 'proveedores.js'), 'utf8'));
+});
+app.get('/comun.css', async (_req, res) => {
+  res.set('Content-Type', 'text/css; charset=utf-8'); res.set('Access-Control-Allow-Origin', '*'); res.set('Cache-Control', 'public, max-age=300');
+  res.send(await readFile(join(dirname(fileURLToPath(import.meta.url)), 'comun.css'), 'utf8'));
+});
 // Solo lectura por codigo compartido (docente, asesor).
 app.get('/cerebro/lectura/:codigo', async (req, res) => {
   try { const c = await leerPorCodigo(req.params.codigo); res.json({ notas: c.notas, actualizado: c.actualizado, solo_lectura: true }); }

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Academy · 3D</title>
+<link rel="stylesheet" href="__CEREBRO_URL__/comun.css">
+<style>
+  #lienzo { width: 100%; height: 420px; border: 1px solid var(--line); border-radius: 10px; background: #0f0e16; margin-top: 8px; touch-action: none; }
+  .piezas { display: grid; gap: 4px; margin-top: 8px; max-height: 200px; overflow: auto; font-size: 12.5px; }
+  .pieza { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+  .pieza input[type=color] { width: 32px; height: 24px; padding: 0; border: none; background: none; }
+  .pieza input[type=number] { width: 4.2rem; padding: 2px 6px; }
+  img#ref { max-width: 200px; max-height: 160px; border-radius: 8px; border: 1px solid var(--line); display: none; }
+</style>
+</head>
+<body>
+  <div class="cab"><h1>3D</h1><span class="modelo" id="modelo">describe un objeto o sube una foto de referencia</span></div>
+
+  <section class="caja">
+    <h2>Objeto</h2>
+    <textarea id="descripcion" placeholder="Describe el objeto: una silla de madera con respaldo curvo; un dron de 4 hélices; una casa pequeña con techo rojo…"></textarea>
+    <div class="zona" id="zona" tabindex="0"><b>Foto de referencia</b> (opcional): suelta una imagen o haz clic</div><input type="file" id="imagen" hidden accept=".png,.jpg,.jpeg,.webp">
+    <img id="ref" alt="Referencia">
+    <div class="fila">
+      <label class="check">Estilo <select id="estilo"><option value="realista">realista</option><option value="lowpoly">low poly</option><option value="juguete">juguete</option><option value="esquema">esquema técnico</option></select></label>
+      <label class="check">Animación <select id="anim"><option value="girar">girar</option><option value="flotar">flotar</option><option value="ninguna">ninguna</option></select></label>
+      <label class="check">Piezas máx. <input id="max-piezas" type="number" min="4" max="60" value="24" style="width:4.5rem"></label>
+      <button class="primario" id="btn-generar">Generar 3D</button>
+    </div>
+    <div class="estado" id="estado" hidden><span class="punto"></span><span id="estado-texto"></span></div>
+    <div class="error" id="error" hidden></div>
+  </section>
+
+  <section class="caja" id="escena-caja" hidden>
+    <h2>Escena</h2>
+    <canvas id="lienzo"></canvas>
+    <p class="nota">Arrastra para girar, rueda para acercar, clic derecho para mover.</p>
+    <div class="fila">
+      <button id="btn-png">Descargar PNG</button>
+      <button id="btn-glb">Descargar GLB (para Blender, Unity, web)</button>
+      <button id="btn-json">Copiar escena JSON</button>
+      <button id="btn-mejorar">Pedir mejoras al modelo</button>
+      <button id="btn-claude" title="Envía la descripción y la escena JSON al chat; eso sí gasta tokens de Claude">Pasar a Claude</button>
+    </div>
+    <p class="nota" id="nota" hidden></p>
+    <h3>Piezas</h3>
+    <div class="piezas" id="piezas"></div>
+  </section>
+
+  <section class="caja">
+    <h2>Consumo</h2>
+    <div class="medidor" id="medidor"></div>
+    <p class="nota">La geometría la arma el panel con three.js a partir de un JSON de piezas que escribe el modelo gratuito; la foto se envía solo al modelo con visión.</p>
+  </section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="__CEREBRO_URL__/proveedores.js"></script>
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import { App } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js';
+const $ = (id) => document.getElementById(id);
+const P = window.RA_prov;
+const CEREBRO_URL = '__CEREBRO_URL__';
+const fmt = (n) => Math.round(n).toLocaleString('es-PE');
+const escapar = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const estado = { consulta: { claude: 0, externo: 0, evitado: 0, costo: 0 }, escena: null, imagen: null, enCurso: false, tres: null };
+function pintarMedidor() { const m = estado.consulta, max = Math.max(m.claude, m.externo, m.evitado, 1); const fila = (n, v, c) => `<span>${n}</span><span class="barra"><i style="width:${(v / max) * 100}%;background:${c}"></i></span><span class="cifra">${fmt(v)}</span>`; $('medidor').innerHTML = fila('Claude ≈', m.claude, '#c2622d') + fila('Externo', m.externo, 'var(--accent)') + fila('Evitado', m.evitado, 'var(--ok)'); }
+const sumar = (d) => { for (const k in d) estado.consulta[k] += d[k]; pintarMedidor(); };
+function mostrarEstado(t) { $('estado').hidden = !t; $('estado-texto').textContent = t || ''; }
+function mostrarError(t) { $('error').hidden = !t; $('error').textContent = t || ''; }
+
+// ---- Imagen de referencia ----
+$('zona').addEventListener('click', () => $('imagen').click());
+for (const ev of ['dragenter', 'dragover']) $('zona').addEventListener(ev, (e) => { e.preventDefault(); $('zona').classList.add('sobre'); });
+for (const ev of ['dragleave', 'drop']) $('zona').addEventListener(ev, (e) => { e.preventDefault(); $('zona').classList.remove('sobre'); });
+$('zona').addEventListener('drop', (e) => cargarImagen(e.dataTransfer?.files?.[0]));
+$('imagen').addEventListener('change', (e) => cargarImagen(e.target.files?.[0]));
+async function cargarImagen(f) { if (!f) return; const buf = await f.arrayBuffer(); const b64 = btoa(String.fromCharCode(...new Uint8Array(buf))); const mime = f.type || 'image/jpeg'; estado.imagen = `data:${mime};base64,${b64}`; $('ref').src = estado.imagen; $('ref').style.display = 'block'; sumar({ evitado: buf.byteLength / 3.8 }); }
+
+// ---- Escena: JSON de piezas que escribe el modelo ----
+const SISTEMA = (max, estilo) => `Eres un modelador 3D. Describe el objeto pedido como composición de primitivas para three.js. Devuelve SOLO un JSON válido:
+{"nombre":"...","fondo":"#hex","piso":true,"piezas":[{"nombre":"...","tipo":"box|sphere|cylinder|cone|torus|capsule|plane","pos":[x,y,z],"rot":[rx,ry,rz],"escala":[sx,sy,sz],"color":"#hex","material":"mate|brillante|metal|vidrio"}]}
+Unidades en metros, el objeto centrado en el origen y apoyado en y=0 (su base en y=0). Rotaciones en radianes. Máximo ${max} piezas; usa las necesarias para que se reconozca. Estilo: ${estilo}. Colores coherentes. Sin texto fuera del JSON.`;
+async function generar() {
+  if (estado.enCurso) return;
+  const desc = $('descripcion').value.trim(); if (!desc && !estado.imagen) return mostrarError('Describe el objeto o sube una foto.');
+  estado.enCurso = true; mostrarError(''); $('btn-generar').disabled = true;
+  try {
+    mostrarEstado(estado.imagen ? 'Mirando la referencia y armando la escena…' : 'Armando la escena…');
+    const max = Math.min(60, Math.max(4, Number($('max-piezas').value) || 24));
+    const contenido = estado.imagen ? [{ type: 'text', text: `Objeto: ${desc || 'el de la imagen'}. Usa la imagen como referencia de forma, proporciones y colores.` }, { type: 'image_url', image_url: { url: estado.imagen } }] : `Objeto: ${desc}`;
+    const r = await P.llamarConRespaldo({ tarea: estado.imagen ? 'vision' : 'codigo', mensajes: [{ role: 'system', content: SISTEMA(max, $('estilo').value) }, { role: 'user', content: contenido }], maxTokens: 4000, stream: false });
+    const m = r.texto.match(/\{[\s\S]*\}/); if (!m) throw new Error('el modelo no devolvió una escena válida');
+    const esc = JSON.parse(m[0]); if (!Array.isArray(esc.piezas) || !esc.piezas.length) throw new Error('escena sin piezas');
+    estado.escena = normalizar(esc);
+    $('modelo').textContent = `${r.proveedor} · ${r.modelo} · ${estado.escena.piezas.length} piezas`;
+    const u = r.usage || {}; const ext = (u.prompt_tokens || 0) + (u.completion_tokens || 0) || Math.round(r.texto.length / 3.8); sumar({ externo: ext, evitado: ext, costo: u.cost || 0 });
+    $('escena-caja').hidden = false; await render(); pintarPiezas();
+    guardarEnCerebro(`3D: ${desc.slice(0, 60) || estado.escena.nombre}`, JSON.stringify(estado.escena));
+  } catch (e) { mostrarError(e.message); }
+  finally { estado.enCurso = false; $('btn-generar').disabled = false; mostrarEstado(''); }
+}
+const TIPOS = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'capsule', 'plane'];
+const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
+const hex = (c, d) => (/^#[0-9a-f]{6}$/i.test(String(c)) ? String(c) : d);
+function normalizar(e) {
+  const piezas = e.piezas.slice(0, 60).map((p, i) => ({ nombre: String(p.nombre || `pieza ${i + 1}`).slice(0, 40), tipo: TIPOS.includes(p.tipo) ? p.tipo : 'box', pos: [0, 1, 2].map((k) => num(p.pos?.[k], 0)), rot: [0, 1, 2].map((k) => num(p.rot?.[k], 0)), escala: [0, 1, 2].map((k) => Math.max(0.01, num(p.escala?.[k], 1))), color: hex(p.color, '#8899aa'), material: ['mate', 'brillante', 'metal', 'vidrio'].includes(p.material) ? p.material : 'mate' }));
+  return { nombre: String(e.nombre || 'objeto').slice(0, 60), fondo: hex(e.fondo, '#0f0e16'), piso: e.piso !== false, piezas };
+}
+
+// ---- three.js ----
+async function tresInit() {
+  if (estado.tres) return estado.tres;
+  const THREE = await import('three');
+  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+  const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+  const canvas = $('lienzo');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); renderer.shadowMap.enabled = true;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
+  const controls = new OrbitControls(camera, canvas); controls.enableDamping = true;
+  const grupo = new THREE.Group(); scene.add(grupo);
+  const luzA = new THREE.HemisphereLight(0xffffff, 0x444466, 0.9); scene.add(luzA);
+  const luzD = new THREE.DirectionalLight(0xffffff, 1.4); luzD.position.set(4, 8, 5); luzD.castShadow = true; luzD.shadow.mapSize.set(1024, 1024); scene.add(luzD);
+  const piso = new THREE.Mesh(new THREE.CircleGeometry(6, 48), new THREE.MeshStandardMaterial({ color: 0x1b1a26, roughness: 0.95 })); piso.rotation.x = -Math.PI / 2; piso.receiveShadow = true; scene.add(piso);
+  const rejilla = new THREE.GridHelper(12, 24, 0x3a3850, 0x26253a); rejilla.position.y = 0.001; scene.add(rejilla);
+  const ajustar = () => { const w = canvas.clientWidth || 600, h = canvas.clientHeight || 420; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  ajustar(); window.addEventListener('resize', ajustar);
+  let anim = null;
+  const bucle = () => { controls.update(); renderer.render(scene, camera); requestAnimationFrame(bucle); }; bucle();
+  estado.tres = { THREE, renderer, scene, camera, controls, grupo, piso, rejilla, GLTFExporter, setAnim: (f) => { anim?.kill?.(); anim = f; } };
+  return estado.tres;
+}
+function material(THREE, color, tipo) {
+  const c = new THREE.Color(color);
+  if (tipo === 'metal') return new THREE.MeshStandardMaterial({ color: c, metalness: 0.9, roughness: 0.25 });
+  if (tipo === 'brillante') return new THREE.MeshStandardMaterial({ color: c, metalness: 0.1, roughness: 0.2 });
+  if (tipo === 'vidrio') return new THREE.MeshPhysicalMaterial({ color: c, transmission: 0.85, roughness: 0.05, thickness: 0.3, transparent: true, opacity: 0.85 });
+  return new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: 0 });
+}
+function geometria(THREE, tipo) {
+  if (tipo === 'sphere') return new THREE.SphereGeometry(0.5, 32, 24);
+  if (tipo === 'cylinder') return new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+  if (tipo === 'cone') return new THREE.ConeGeometry(0.5, 1, 32);
+  if (tipo === 'torus') return new THREE.TorusGeometry(0.5, 0.15, 16, 48);
+  if (tipo === 'capsule') return new THREE.CapsuleGeometry(0.3, 0.6, 8, 16);
+  if (tipo === 'plane') return new THREE.PlaneGeometry(1, 1);
+  return new THREE.BoxGeometry(1, 1, 1);
+}
+async function render() {
+  const T = await tresInit(); const { THREE, scene, grupo, camera, controls, piso, rejilla } = T;
+  while (grupo.children.length) grupo.remove(grupo.children[0]);
+  const e = estado.escena; scene.background = new THREE.Color(e.fondo); piso.visible = e.piso; rejilla.visible = e.piso;
+  for (const p of e.piezas) { const m = new THREE.Mesh(geometria(THREE, p.tipo), material(THREE, p.color, p.material)); m.position.set(...p.pos); m.rotation.set(...p.rot); m.scale.set(...p.escala); m.castShadow = true; m.receiveShadow = true; m.name = p.nombre; grupo.add(m); }
+  const caja = new THREE.Box3().setFromObject(grupo); const centro = caja.getCenter(new THREE.Vector3()); const tam = caja.getSize(new THREE.Vector3()).length() || 2;
+  grupo.position.y -= caja.min.y; // apoyar en el piso
+  controls.target.set(centro.x, (caja.max.y - caja.min.y) / 2, centro.z); camera.position.set(centro.x + tam * 0.9, tam * 0.7, centro.z + tam * 1.1); camera.near = tam / 100; camera.far = tam * 50; camera.updateProjectionMatrix(); controls.update();
+  const anim = $('anim').value; grupo.rotation.y = 0;
+  if (anim === 'girar' && window.gsap) T.setAnim(gsap.to(grupo.rotation, { y: Math.PI * 2, duration: 14, repeat: -1, ease: 'none' }));
+  else if (anim === 'flotar' && window.gsap) T.setAnim(gsap.to(grupo.position, { y: grupo.position.y + tam * 0.05, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+  else T.setAnim(null);
+}
+$('anim').addEventListener('change', () => estado.escena && render());
+function pintarPiezas() {
+  $('piezas').innerHTML = estado.escena.piezas.map((p, i) => `<div class="pieza"><span>${escapar(p.nombre)} <span class="modelo">${p.tipo}</span></span><input type="color" value="${p.color}" data-i="${i}" data-k="color" title="color"><input type="number" step="0.1" value="${p.escala[1]}" data-i="${i}" data-k="alto" title="alto"><button data-del="${i}" style="min-height:0;padding:2px 8px">✕</button></div>`).join('');
+}
+$('piezas').addEventListener('input', (e) => { const t = e.target; const i = Number(t.dataset.i); if (!Number.isInteger(i)) return; const p = estado.escena.piezas[i]; if (t.dataset.k === 'color') p.color = t.value; if (t.dataset.k === 'alto') p.escala[1] = Math.max(0.01, Number(t.value) || 1); render(); });
+$('piezas').addEventListener('click', (e) => { const b = e.target.closest('button[data-del]'); if (!b) return; estado.escena.piezas.splice(Number(b.dataset.del), 1); pintarPiezas(); render(); });
+
+// ---- Exportar ----
+async function subir(nombre, blob) { const r = await fetch(`${CEREBRO_URL}/archivo`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Nombre': encodeURIComponent(nombre) }, body: blob }); const j = await r.json(); if (!r.ok) throw new Error(j.error || `servidor respondió ${r.status}`); $('nota').hidden = false; $('nota').innerHTML = `Descarga: <a class="enlace" href="${escapar(j.url)}" target="_blank" rel="noopener">${escapar(j.nombre)}</a> (24 h)`; try { if (app.openLink) await app.openLink({ url: j.url }); } catch {} }
+$('btn-png').addEventListener('click', async () => { try { const T = await tresInit(); T.renderer.render(T.scene, T.camera); const blob = await new Promise((r) => $('lienzo').toBlob(r, 'image/png')); await subir(`${(estado.escena?.nombre || 'escena').replace(/[^\p{L}\p{N}]+/gu, '-')}.png`, blob); } catch (e) { $('nota').hidden = false; $('nota').textContent = e.message; } });
+$('btn-glb').addEventListener('click', async () => { try { const T = await tresInit(); const exp = new T.GLTFExporter(); const buf = await new Promise((res, rej) => exp.parse(T.grupo, res, rej, { binary: true })); await subir(`${(estado.escena?.nombre || 'escena').replace(/[^\p{L}\p{N}]+/gu, '-')}.glb`, new Blob([buf], { type: 'model/gltf-binary' })); } catch (e) { $('nota').hidden = false; $('nota').textContent = 'No se pudo exportar: ' + e.message; } });
+$('btn-json').addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(estado.escena, null, 1)); $('nota').hidden = false; $('nota').textContent = 'Escena copiada.'; } catch {} });
+$('btn-mejorar').addEventListener('click', async () => {
+  if (!estado.escena || estado.enCurso) return; estado.enCurso = true; mostrarError('');
+  try {
+    mostrarEstado('Pidiendo mejoras…');
+    const r = await P.llamarConRespaldo({ tarea: 'codigo', mensajes: [{ role: 'system', content: SISTEMA(Math.min(60, estado.escena.piezas.length + 12), $('estilo').value) }, { role: 'user', content: `Mejora esta escena para que se reconozca mejor como «${$('descripcion').value.trim() || estado.escena.nombre}»: corrige proporciones, añade detalles que falten, mantén el estilo. Escena actual:\n${JSON.stringify(estado.escena)}` }], maxTokens: 4000, stream: false });
+    const m = r.texto.match(/\{[\s\S]*\}/); if (!m) throw new Error('sin escena válida'); estado.escena = normalizar(JSON.parse(m[0])); const u = r.usage || {}; const ext = (u.prompt_tokens || 0) + (u.completion_tokens || 0); sumar({ externo: ext, evitado: ext, costo: u.cost || 0 }); await render(); pintarPiezas();
+  } catch (e) { mostrarError(e.message); } finally { estado.enCurso = false; mostrarEstado(''); }
+});
+$('btn-claude').addEventListener('click', async () => {
+  const texto = `Escena 3D hecha en el panel (three.js). Objeto: ${$('descripcion').value.trim() || estado.escena?.nombre}. Piezas (JSON):\n${JSON.stringify(estado.escena).slice(0, 5000)}\n\nSugiere cómo mejorar la forma o escribe el código three.js completo si lo pido.`;
+  const caps = app.getHostCapabilities?.() || {}; $('nota').hidden = false;
+  try { if (caps.message && app.sendMessage) { await app.sendMessage({ role: 'user', content: [{ type: 'text', text: texto }] }); sumar({ claude: texto.length / 3.8 }); $('nota').textContent = 'Enviado al chat; esto sí gasta tokens de Claude.'; } else { await navigator.clipboard.writeText(texto); $('nota').textContent = 'Copiado: pégalo en el chat.'; } } catch (e) { $('nota').textContent = 'No se pudo enviar: ' + e.message; }
+});
+async function guardarEnCerebro(pregunta, respuesta) {
+  const frase = P.guardado.leer('ra-cerebro-frase'); if (!frase || (P.guardado.leer('ra-cerebro-auto') ?? '1') !== '1') return;
+  const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t).trim().normalize('NFC'))))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const ahora = new Date().toISOString();
+  const nota = { id: `t_${Date.now().toString(36)}`, fecha: ahora, actualizado: ahora, modo: '3d', pregunta, respuesta: respuesta.slice(0, 8000), fuentes: [], tema: pregunta.slice(0, 50), hallazgos: [`${estado.escena.piezas.length} piezas`], etiquetas: ['3d'] };
+  let notas = []; try { notas = JSON.parse(P.guardado.leer('ra-cerebro-notas') || '[]'); } catch {}
+  notas.unshift(nota); P.guardado.escribir('ra-cerebro-notas', JSON.stringify(notas));
+  try { const id = await sha(frase), url = `${CEREBRO_URL}/cerebro/${id}`; const remoto = await (await fetch(url, { cache: 'no-store' })).json(); const porId = new Map(); for (const n of [...(remoto.notas || []), ...notas]) { const p = porId.get(n.id); if (!p || String(n.actualizado || '') > String(p.actualizado || '')) porId.set(n.id, n); } const todas = [...porId.values()]; P.guardado.escribir('ra-cerebro-notas', JSON.stringify(todas)); await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notas: todas }) }); } catch {}
+}
+
+// ---- Host ----
+$('btn-generar').addEventListener('click', generar);
+const app = new App({ name: 'research-academy-3d', version: '0.1.0' });
+let entradaChars = 0;
+app.ontoolinput = (p) => { entradaChars = JSON.stringify(p?.arguments || {}).length; };
+app.ontoolresult = (r) => {
+  const sc = r?.structuredContent || {}; const salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
+  estado.consulta = { claude: 0, externo: 0, evitado: 0, costo: 0 }; sumar({ claude: (entradaChars + salidaChars) / 3.8 + 45 });
+  if (sc.descripcion) $('descripcion').value = sc.descripcion; if (sc.estilo) $('estilo').value = sc.estilo;
+  if (sc.descripcion) generar();
+};
+app.onhostcontextchanged = (c) => { if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; };
+pintarMedidor();
+if (!P.configurados().length) mostrarError('No hay proveedores configurados. Pide a Claude «research-academy configurar».');
+try { await app.connect(); const c = app.getHostContext?.(); if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; } catch (e) { mostrarError('No se pudo conectar con el host: ' + e.message); }
+</script>
+</body>
+</html>

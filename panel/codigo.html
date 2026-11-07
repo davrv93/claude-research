@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Academy · Código</title>
+<link rel="stylesheet" href="__CEREBRO_URL__/comun.css">
+<style>
+  iframe.previa { width: 100%; height: 360px; border: 1px solid var(--line); border-radius: 8px; background: #fff; margin-top: 8px; }
+  pre.salida { font: 12.5px var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 8px 0 0; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+</style>
+</head>
+<body>
+  <div class="cab"><h1>Código</h1><span class="modelo" id="modelo">proveedor automático</span></div>
+
+  <section class="caja">
+    <h2>Tarea</h2>
+    <div class="fila" style="margin-top:0">
+      <label class="check">Acción <select id="accion"><option value="escribir">escribir</option><option value="corregir">corregir error</option><option value="explicar">explicar</option><option value="revisar">revisar</option><option value="tests">escribir tests</option><option value="convertir">convertir a otro lenguaje</option></select></label>
+      <label class="check">Lenguaje <select id="lenguaje"><option>javascript</option><option>typescript</option><option>html</option><option>css</option><option>python</option><option>sql</option><option>java</option><option>php</option><option>bash</option><option>react</option><option>otro</option></select></label>
+      <label class="check">Proveedor <select id="proveedor"><option value="">automático</option></select></label>
+    </div>
+    <textarea id="instruccion" placeholder="Qué necesitas. Ejemplo: función que valide un DNI peruano de 8 dígitos"></textarea>
+    <textarea id="codigo" class="codigo" placeholder="Pega aquí el código o el error, si aplica" style="min-height:120px"></textarea>
+    <div class="fila"><button class="primario" id="btn-generar">Generar</button><button id="btn-limpiar">Limpiar</button></div>
+    <div class="estado" id="estado" hidden><span class="punto"></span><span id="estado-texto"></span></div>
+    <div class="error" id="error" hidden></div>
+  </section>
+
+  <section class="caja" id="resultado" hidden>
+    <h2>Resultado</h2>
+    <pre class="codigo" id="salida"></pre>
+    <div class="nota" id="uso"></div>
+    <div class="fila">
+      <button id="btn-copiar">Copiar</button>
+      <button id="btn-previa">Vista previa (HTML/JS)</button>
+      <button id="btn-ejecutar">Ejecutar JS</button>
+      <button id="btn-descargar">Descargar archivo</button>
+      <button id="btn-claude" title="Envía la instrucción y el código al chat; eso sí gasta tokens de Claude">Pasar a Claude para la versión final</button>
+    </div>
+    <p class="nota" id="nota" hidden></p>
+    <iframe class="previa" id="previa" sandbox="allow-scripts" hidden title="Vista previa"></iframe>
+    <pre class="salida" id="consola" hidden></pre>
+  </section>
+
+  <section class="caja">
+    <h2>Consumo</h2>
+    <div class="medidor" id="medidor"></div>
+    <p class="nota">Claude ≈ llamada y una frase. Externo: tokens del proveedor usado. Evitado: lo que el proveedor leyó y escribió.</p>
+  </section>
+
+<script src="__CEREBRO_URL__/proveedores.js"></script>
+<script type="module">
+import { App } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js';
+const $ = (id) => document.getElementById(id);
+const P = window.RA_prov;
+const CEREBRO_URL = '__CEREBRO_URL__';
+const fmt = (n) => Math.round(n).toLocaleString('es-PE');
+const estado = { consulta: { claude: 0, externo: 0, evitado: 0, costo: 0 }, ultimo: '', ultimoLenguaje: 'javascript', peticion: {}, enCurso: false };
+const escapar = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function pintarMedidor() { const m = estado.consulta, max = Math.max(m.claude, m.externo, m.evitado, 1); const fila = (n, v, c) => `<span>${n}</span><span class="barra"><i style="width:${(v / max) * 100}%;background:${c}"></i></span><span class="cifra">${fmt(v)}</span>`; $('medidor').innerHTML = fila('Claude ≈', m.claude, '#c2622d') + fila('Externo', m.externo, 'var(--accent)') + fila('Evitado', m.evitado, 'var(--ok)'); }
+const sumar = (d) => { for (const k in d) estado.consulta[k] += d[k]; pintarMedidor(); };
+function mostrarEstado(t) { $('estado').hidden = !t; $('estado-texto').textContent = t || ''; }
+function mostrarError(t) { $('error').hidden = !t; $('error').textContent = t || ''; }
+for (const [id, p] of Object.entries(P.PROVEEDORES)) { const o = document.createElement('option'); o.value = id; o.textContent = p.nombre; $('proveedor').appendChild(o); }
+
+const SISTEMAS = {
+  escribir: (l) => `Eres un programador senior. Escribe código ${l} limpio y comentado en español, listo para usar. Responde con un solo bloque de código (sin \`\`\`) y, al final, 3 líneas de uso bajo "// Uso:".`,
+  corregir: (l) => `Eres un programador senior. Te dan código ${l} y un error. Explica la causa en 2 líneas (comentario al inicio) y devuelve el código corregido completo, sin \`\`\`.`,
+  explicar: (l) => `Explica este código ${l} en español, para un estudiante: qué hace, paso a paso, y un ejemplo de uso. Máximo 250 palabras.`,
+  revisar: (l) => `Revisa este código ${l}: errores, seguridad, rendimiento, estilo. Lista numerada con línea aproximada y corrección propuesta. Máximo 300 palabras.`,
+  tests: (l) => `Escribe pruebas unitarias para este código ${l} con el framework más común del lenguaje. Un bloque de código sin \`\`\`, casos normales y de borde.`,
+  convertir: (l) => `Convierte el código dado al lenguaje ${l}, manteniendo comportamiento y nombres. Devuelve solo el código, sin \`\`\`.`,
+};
+function limpiarBloque(t) { return t.replace(/^```[a-z]*\n?/im, '').replace(/\n?```\s*$/m, '').trim(); }
+
+async function generar() {
+  if (estado.enCurso) return;
+  const accion = $('accion').value, lenguaje = $('lenguaje').value, instruccion = $('instruccion').value.trim(), codigo = $('codigo').value.trim();
+  if (!instruccion && !codigo) return mostrarError('Escribe qué necesitas o pega código.');
+  estado.enCurso = true; mostrarError(''); $('btn-generar').disabled = true; $('resultado').hidden = false; $('salida').textContent = ''; $('salida').classList.add('flujo'); $('previa').hidden = true; $('consola').hidden = true; $('nota').hidden = true;
+  const usuario = `${instruccion ? `Instrucción: ${instruccion}\n\n` : ''}${codigo ? `Código o error:\n${codigo.slice(0, 20000)}` : ''}`;
+  try {
+    mostrarEstado('Generando…');
+    const r = await P.llamarConRespaldo({ proveedor: $('proveedor').value || undefined, tarea: 'codigo', mensajes: [{ role: 'system', content: SISTEMAS[accion](lenguaje) }, { role: 'user', content: usuario }], maxTokens: 3000, alTexto: (t) => { $('salida').textContent = t; } });
+    estado.ultimo = ['explicar', 'revisar'].includes(accion) ? r.texto : limpiarBloque(r.texto); estado.ultimoLenguaje = lenguaje;
+    $('salida').textContent = estado.ultimo; $('salida').classList.remove('flujo');
+    $('modelo').textContent = `${r.proveedor} · ${r.modelo} · ${r.ms} ms`;
+    const u = r.usage || {}; const ext = (u.prompt_tokens || 0) + (u.completion_tokens || 0) || Math.round((usuario.length + r.texto.length) / 3.8);
+    sumar({ externo: ext, evitado: ext, costo: u.cost || 0 });
+    $('uso').textContent = `entrada ${fmt(u.prompt_tokens || 0)} · salida ${fmt(u.completion_tokens || 0)} tokens${u.cost != null ? ` · costo $${(u.cost || 0).toFixed(4)}` : ''}`;
+    guardarEnCerebro(`${accion} ${lenguaje}: ${instruccion.slice(0, 80) || 'código pegado'}`, estado.ultimo);
+  } catch (e) { $('salida').classList.remove('flujo'); mostrarError(e.message); }
+  finally { estado.enCurso = false; $('btn-generar').disabled = false; mostrarEstado(''); }
+}
+$('btn-generar').addEventListener('click', generar);
+$('btn-limpiar').addEventListener('click', () => { $('instruccion').value = ''; $('codigo').value = ''; });
+$('btn-copiar').addEventListener('click', async () => { try { await navigator.clipboard.writeText(estado.ultimo); $('btn-copiar').textContent = 'Copiado'; } catch { $('btn-copiar').textContent = 'No se pudo copiar'; } setTimeout(() => ($('btn-copiar').textContent = 'Copiar'), 1500); });
+
+// Vista previa en iframe aislado (sin acceso al panel ni a las llaves)
+$('btn-previa').addEventListener('click', () => {
+  const l = estado.ultimoLenguaje, c = estado.ultimo; let html;
+  if (l === 'html' || /<html|<!doctype|<body/i.test(c)) html = c;
+  else if (l === 'css') html = `<!doctype html><html><head><style>${c}</style></head><body><h1>Título de prueba</h1><p>Párrafo de prueba con <a href="#">enlace</a> y <button>botón</button>.</p></body></html>`;
+  else html = `<!doctype html><html><head><meta charset="utf-8"></head><body><pre id="out" style="font:13px monospace;white-space:pre-wrap"></pre><script>const out=document.getElementById('out');const log=(...a)=>{out.textContent+=a.map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' ')+'\\n';};console.log=log;console.error=log;window.onerror=(m)=>log('Error:',m);try{${c.replace(/<\/script>/gi, '<\\/script>')}}catch(e){log('Error:',e.message)}<\/script></body></html>`;
+  $('previa').srcdoc = html; $('previa').hidden = false;
+});
+// Ejecutar JS en un Web Worker con tiempo límite
+$('btn-ejecutar').addEventListener('click', () => {
+  const c = estado.ultimo; $('consola').hidden = false; $('consola').textContent = 'Ejecutando…';
+  const src = `const __l=[];const log=(...a)=>__l.push(a.map(x=>{try{return typeof x==='object'?JSON.stringify(x):String(x)}catch{return String(x)}}).join(' '));self.console={log,error:log,warn:log,info:log};try{${c}\n}catch(e){log('Error: '+e.message)}self.postMessage(__l.join('\\n'));`;
+  try {
+    const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'application/javascript' })));
+    const t = setTimeout(() => { w.terminate(); $('consola').textContent += '\n(detenido a los 5 s)'; }, 5000);
+    w.onmessage = (e) => { clearTimeout(t); $('consola').textContent = e.data || '(sin salida)'; w.terminate(); };
+    w.onerror = (e) => { clearTimeout(t); $('consola').textContent = 'Error: ' + e.message; w.terminate(); };
+  } catch (e) { $('consola').textContent = 'No se pudo ejecutar: ' + e.message; }
+});
+const EXT = { javascript: 'js', typescript: 'ts', html: 'html', css: 'css', python: 'py', sql: 'sql', java: 'java', php: 'php', bash: 'sh', react: 'jsx', otro: 'txt' };
+$('btn-descargar').addEventListener('click', async () => {
+  try {
+    const ext = EXT[estado.ultimoLenguaje] || 'txt';
+    const r = await fetch(`${CEREBRO_URL}/archivo`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Nombre': encodeURIComponent(`codigo.${ext}`) }, body: new Blob([estado.ultimo]) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || `servidor respondió ${r.status}`);
+    $('nota').hidden = false; $('nota').innerHTML = `Descarga: <a class="enlace" href="${escapar(j.url)}" target="_blank" rel="noopener">${escapar(j.nombre)}</a> (24 h)`;
+    try { if (app.openLink) await app.openLink({ url: j.url }); } catch {}
+  } catch (e) { $('nota').hidden = false; $('nota').textContent = 'No se pudo subir: ' + e.message; }
+});
+$('btn-claude').addEventListener('click', async () => {
+  const texto = `Borrador de código (${estado.ultimoLenguaje}) hecho en el panel Código. Instrucción: ${$('instruccion').value.trim() || '(ninguna)'}\n\n${estado.ultimo.slice(0, 6000)}\n\nHaz la versión final: revisa errores y mejora sin cambiar el comportamiento pedido.`;
+  const caps = app.getHostCapabilities?.() || {}; $('nota').hidden = false;
+  try { if (caps.message && app.sendMessage) { await app.sendMessage({ role: 'user', content: [{ type: 'text', text: texto }] }); sumar({ claude: texto.length / 3.8 }); $('nota').textContent = 'Enviado al chat; esto sí gasta tokens de Claude.'; } else { await navigator.clipboard.writeText(texto); $('nota').textContent = 'Copiado: pégalo en el chat.'; } }
+  catch (e) { $('nota').textContent = 'No se pudo enviar: ' + e.message; }
+});
+
+async function guardarEnCerebro(pregunta, respuesta) {
+  const frase = P.guardado.leer('ra-cerebro-frase'); if (!frase || (P.guardado.leer('ra-cerebro-auto') ?? '1') !== '1') return;
+  const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t).trim().normalize('NFC'))))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const ahora = new Date().toISOString();
+  const nota = { id: `c_${Date.now().toString(36)}`, fecha: ahora, actualizado: ahora, modo: 'codigo', pregunta, respuesta: respuesta.slice(0, 8000), fuentes: [], tema: pregunta.slice(0, 50), hallazgos: [respuesta.split('\n')[0].slice(0, 120)], etiquetas: ['codigo'] };
+  let notas = []; try { notas = JSON.parse(P.guardado.leer('ra-cerebro-notas') || '[]'); } catch {}
+  notas.unshift(nota); P.guardado.escribir('ra-cerebro-notas', JSON.stringify(notas));
+  try { const id = await sha(frase), url = `${CEREBRO_URL}/cerebro/${id}`; const remoto = await (await fetch(url, { cache: 'no-store' })).json(); const porId = new Map(); for (const n of [...(remoto.notas || []), ...notas]) { const p = porId.get(n.id); if (!p || String(n.actualizado || '') > String(p.actualizado || '')) porId.set(n.id, n); } const todas = [...porId.values()]; P.guardado.escribir('ra-cerebro-notas', JSON.stringify(todas)); await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notas: todas }) }); } catch {}
+}
+
+// ---- Host ----
+const app = new App({ name: 'research-academy-codigo', version: '0.1.0' });
+let entradaChars = 0;
+app.ontoolinput = (p) => { entradaChars = JSON.stringify(p?.arguments || {}).length; };
+app.ontoolresult = (r) => {
+  const sc = r?.structuredContent || {}; const salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
+  estado.consulta = { claude: 0, externo: 0, evitado: 0, costo: 0 }; sumar({ claude: (entradaChars + salidaChars) / 3.8 + 45 });
+  if (sc.accion) $('accion').value = sc.accion; if (sc.lenguaje) $('lenguaje').value = sc.lenguaje; if (sc.instruccion) $('instruccion').value = sc.instruccion; if (sc.codigo) $('codigo').value = sc.codigo;
+  if (sc.instruccion || sc.codigo) generar();
+};
+app.onhostcontextchanged = (c) => { if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; };
+pintarMedidor();
+if (!P.configurados().length) mostrarError('No hay proveedores configurados. Pide a Claude «research-academy configurar» y pon tu llave de Gemini o autoriza OpenRouter.');
+try { await app.connect(); const c = app.getHostContext?.(); if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; } catch (e) { mostrarError('No se pudo conectar con el host: ' + e.message); }
+</script>
+</body>
+</html>

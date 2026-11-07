@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Academy · Configuración</title>
+<link rel="stylesheet" href="__CEREBRO_URL__/comun.css">
+<style>
+  .prov { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); margin-top: 8px; }
+  .prov .cabp { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .prov .cabp b { font-size: 13.5px; }
+  .prov .estado-prov { font: 12px var(--mono); color: var(--muted); }
+  .orden { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .orden span { padding: 2px 8px; border-radius: 999px; background: var(--s2); font-size: 12px; }
+  .orden button { min-height: 0; padding: 2px 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="cab"><h1>Configuración</h1><span class="modelo">Una sola vez por navegador. Nada de aquí pasa por Claude ni por el servidor.</span></div>
+
+  <section class="caja">
+    <h2>OpenRouter (modelos gratuitos, búsqueda y audio)</h2>
+    <div id="or-estado" class="nota" style="margin-top:0"></div>
+    <div class="fila"><button class="primario" id="btn-autorizar">Autorizar en OpenRouter</button><button id="btn-or-borrar">Desconectar</button></div>
+    <div id="paso-codigo" hidden>
+      <p class="nota">Si no se abrió una pestaña, abre este enlace: <a class="enlace" id="enlace-auth" target="_blank" rel="noopener"></a></p>
+      <div class="fila" style="margin-top:4px"><input id="codigo" placeholder="Pega el código que muestra OpenRouter" autocomplete="off" style="flex:1;min-width:200px"><button class="primario" id="btn-canjear">Conectar</button></div>
+    </div>
+    <div class="error" id="error-auth" hidden></div>
+  </section>
+
+  <section class="caja">
+    <h2>Llaves de otros proveedores (código y texto)</h2>
+    <p class="nota" style="margin-top:0">Cada llave se crea gratis en la consola del proveedor y se guarda solo en este navegador. Nunca la pegues en el chat.</p>
+    <div id="proveedores"></div>
+  </section>
+
+  <section class="caja">
+    <h2>Orden de preferencia por tarea</h2>
+    <p class="nota" style="margin-top:0">El panel usa el primero que tenga llave; si falla o agota cuota, pasa al siguiente.</p>
+    <div id="ordenes"></div>
+  </section>
+
+  <section class="caja">
+    <h2>Cerebro y permisos</h2>
+    <div class="fila" style="margin-top:0"><input id="frase" placeholder="Frase clave del cerebro" autocomplete="off" style="max-width:320px"><button id="btn-frase">Guardar</button><span id="frase-estado" class="nota" style="margin:0"></span></div>
+    <div class="fila"><label class="check"><input type="checkbox" id="auto"> Guardar cada respuesta en el cerebro</label><label class="check"><input type="checkbox" id="permiso"> Permitir enviar contenido de archivos al modelo externo</label></div>
+  </section>
+
+  <section class="caja">
+    <h2>Copiar configuración a otro equipo</h2>
+    <div class="fila" style="margin-top:0"><button id="btn-exportar">Copiar configuración (sin llaves)</button><label for="importar" style="display:inline-block"><span class="nota" style="margin:0;display:inline-block;padding:7px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;color:var(--fg)">Importar .json</span><input type="file" id="importar" accept="application/json" hidden></label><button id="btn-probar-todo">Probar todos</button></div>
+    <p class="nota" id="nota-cfg" hidden></p>
+  </section>
+
+<script src="__CEREBRO_URL__/proveedores.js"></script>
+<script type="module">
+import { App } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js';
+const $ = (id) => document.getElementById(id);
+const P = window.RA_prov;
+const OPENROUTER = 'https://openrouter.ai';
+const escapar = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const b64url = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+// ---- OpenRouter ----
+async function estadoOpenRouter() {
+  const k = P.leerLlave('openrouter');
+  if (!k) { $('or-estado').textContent = 'No conectado. Autoriza una vez; es gratis.'; return; }
+  try {
+    const r = await fetch(`${OPENROUTER}/api/v1/key`, { headers: { Authorization: `Bearer ${k}` } });
+    const d = (await r.json()).data || {}, q = d.free_model_daily_requests;
+    $('or-estado').innerHTML = `<span class="ok">Conectado</span> (${escapar(P.enmascarar(k))}). ${q ? `Hoy: ${q.used} de ${q.limit} peticiones gratis usadas, quedan ${q.remaining}.` : ''}`;
+  } catch (e) { $('or-estado').textContent = 'Conectado, pero no se pudo leer la cuota: ' + e.message; }
+}
+$('btn-autorizar').addEventListener('click', async () => {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  P.guardado.escribir('ra-pkce-verifier', verifier);
+  const url = `${OPENROUTER}/auth?code_challenge=${challenge}&code_challenge_method=S256&key_label=Research%20Academy%20Panel`;
+  $('enlace-auth').href = url; $('enlace-auth').textContent = url; $('paso-codigo').hidden = false;
+  let abierto = false; try { if (app.openLink) abierto = !(await app.openLink({ url })).isError; } catch {}
+  if (!abierto) { try { window.open(url, '_blank', 'noopener'); } catch {} }
+});
+$('btn-canjear').addEventListener('click', async () => {
+  const code = $('codigo').value.trim(), verifier = P.guardado.leer('ra-pkce-verifier');
+  if (!code || !verifier) return ($('error-auth').hidden = false, $('error-auth').textContent = 'Pulsa «Autorizar» y pega el código.');
+  try {
+    const r = await fetch(`${OPENROUTER}/api/v1/auth/keys`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: 'S256' }) });
+    const j = await r.json().catch(() => ({})); if (!r.ok || !j.key) throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`);
+    P.guardarLlave('openrouter', j.key); P.guardado.borrar('ra-pkce-verifier'); $('codigo').value = ''; $('paso-codigo').hidden = true; $('error-auth').hidden = true; estadoOpenRouter(); pintarOrdenes();
+  } catch (e) { $('error-auth').hidden = false; $('error-auth').textContent = 'No se pudo conectar: ' + e.message; }
+});
+$('btn-or-borrar').addEventListener('click', () => { P.borrarLlave('openrouter'); estadoOpenRouter(); pintarOrdenes(); });
+
+// ---- Otros proveedores ----
+function pintarProveedores() {
+  const cont = $('proveedores'); cont.innerHTML = '';
+  for (const [id, p] of Object.entries(P.PROVEEDORES)) {
+    if (id === 'openrouter') continue;
+    const k = P.leerLlave(id);
+    const div = document.createElement('div'); div.className = 'prov';
+    div.innerHTML = `<div class="cabp"><b>${escapar(p.nombre)}</b><span class="estado-prov" id="est-${id}">${k ? 'llave guardada ' + escapar(P.enmascarar(k)) : 'sin llave'}</span></div>
+      <div class="nota" style="margin:0">${escapar(p.gratis)}. Modelos: ${escapar(Object.values(p.modelos).join(', '))}. <a class="enlace" href="${escapar(p.ayuda)}" target="_blank" rel="noopener">obtener llave</a></div>
+      <div class="fila" style="margin-top:4px"><input type="password" id="k-${id}" placeholder="Pega la llave aquí" autocomplete="off" style="flex:1;min-width:200px"><button class="primario" data-g="${id}">Guardar</button><button data-p="${id}">Probar</button><button data-b="${id}">Borrar</button></div>`;
+    cont.appendChild(div);
+  }
+}
+$('proveedores').addEventListener('click', async (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const id = b.dataset.g || b.dataset.p || b.dataset.b; const est = $('est-' + id);
+  if (b.dataset.g) { const v = $('k-' + id).value.trim(); if (!v) return; P.guardarLlave(id, v); $('k-' + id).value = ''; est.textContent = 'llave guardada ' + P.enmascarar(v); pintarOrdenes(); }
+  if (b.dataset.b) { P.borrarLlave(id); est.textContent = 'sin llave'; pintarOrdenes(); }
+  if (b.dataset.p) { est.textContent = 'probando…'; const r = await P.probar(id); est.innerHTML = r.ok ? `<span class="ok">responde</span> ${escapar(r.modelo)} en ${r.ms} ms` : `<span class="mal">falla</span>: ${escapar(r.error)}`; }
+});
+
+// ---- Orden por tarea ----
+function pintarOrdenes() {
+  const cont = $('ordenes'); cont.innerHTML = '';
+  for (const tarea of Object.keys(P.ORDEN_POR_DEFECTO)) {
+    const lista = P.orden(tarea);
+    const div = document.createElement('div'); div.className = 'orden'; div.style.marginTop = '6px';
+    div.innerHTML = `<b style="min-width:4.5rem">${tarea}</b>` + (lista.length ? lista.map((id, i) => `<span>${i + 1}. ${escapar(P.PROVEEDORES[id].nombre.split(' ')[0])} ${i ? `<button data-t="${tarea}" data-s="${id}" title="subir">▲</button>` : ''}</span>`).join('') : '<span class="nota" style="margin:0">sin proveedores con llave</span>');
+    cont.appendChild(div);
+  }
+}
+$('ordenes').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-s]'); if (!b) return;
+  const lista = P.orden(b.dataset.t); const i = lista.indexOf(b.dataset.s); if (i > 0) { [lista[i - 1], lista[i]] = [lista[i], lista[i - 1]]; P.guardarOrden(b.dataset.t, lista); pintarOrdenes(); }
+});
+
+// ---- Cerebro y permisos ----
+const frase = P.guardado.leer('ra-cerebro-frase');
+$('frase').value = frase || ''; $('frase-estado').textContent = frase ? 'activo' : 'sin frase';
+$('btn-frase').addEventListener('click', () => { const f = $('frase').value.trim(); if (f.length < 4) return; P.guardado.escribir('ra-cerebro-frase', f); $('frase-estado').textContent = 'guardada; los paneles la usan al abrirse'; });
+$('auto').checked = (P.guardado.leer('ra-cerebro-auto') ?? '1') === '1'; $('auto').addEventListener('change', () => P.guardado.escribir('ra-cerebro-auto', $('auto').checked ? '1' : '0'));
+$('permiso').checked = (P.guardado.leer('ra-docs-permiso') ?? '1') === '1'; $('permiso').addEventListener('change', () => P.guardado.escribir('ra-docs-permiso', $('permiso').checked ? '1' : '0'));
+
+// ---- Exportar / importar / probar todo ----
+$('btn-exportar').addEventListener('click', async () => { const t = JSON.stringify(P.exportarConfig(), null, 1); try { await navigator.clipboard.writeText(t); $('nota-cfg').hidden = false; $('nota-cfg').textContent = 'Configuración copiada (sin llaves ni frase). Pégala en un archivo .json e impórtala en el otro equipo.'; } catch { $('nota-cfg').hidden = false; $('nota-cfg').textContent = t; } });
+$('importar').addEventListener('change', async (e) => { const f = e.target.files?.[0]; if (!f) return; try { P.importarConfig(JSON.parse(await f.text())); pintarOrdenes(); $('nota-cfg').hidden = false; $('nota-cfg').textContent = 'Importada. Las llaves se ingresan a mano en cada equipo.'; } catch (err) { $('nota-cfg').hidden = false; $('nota-cfg').textContent = 'No se pudo importar: ' + err.message; } e.target.value = ''; });
+$('btn-probar-todo').addEventListener('click', async () => { $('nota-cfg').hidden = false; const res = []; for (const id of P.configurados()) { const r = await P.probar(id); res.push(`${P.PROVEEDORES[id].nombre.split(' ')[0]}: ${r.ok ? `ok (${r.modelo}, ${r.ms} ms)` : 'falla · ' + r.error}`); } $('nota-cfg').textContent = res.join(' · ') || 'No hay proveedores con llave.'; });
+
+// ---- Host ----
+const app = new App({ name: 'research-academy-config', version: '0.1.0' });
+app.ontoolresult = () => {};
+app.onhostcontextchanged = (c) => { if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; };
+pintarProveedores(); pintarOrdenes(); estadoOpenRouter();
+try { await app.connect(); const c = app.getHostContext?.(); if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; } catch {}
+</script>
+</body>
+</html>

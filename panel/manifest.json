@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "research-academy-panel",
   "display_name": "Research Academy Panel",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Delega preguntas e investigaciones web a un modelo gratuito de OpenRouter y muestra la respuesta en un panel, sin que entre al contexto de Claude.",
   "long_description": "Claude llama a delegar o investigar y recibe una sola línea. La búsqueda (Parallel) y la respuesta del modelo gratuito ocurren en el panel, en el navegador del usuario, con su propia llave de OpenRouter creada por OAuth PKCE. El servidor no guarda llaves ni llama a ningún modelo.",
   "author": { "name": "JMD Learning" },
@@ -12,7 +12,7 @@
     "mcp_config": {
       "command": "node",
       "args": ["${__dirname}/stdio.mjs"],
-      "env": { "CEREBRO_URL": "https://jmd-learn.online/research-academy" }
+      "env": { "CEREBRO_URL": "https://jmd-learn.online/research-academy", "SERVER_URL": "https://jmd-learn.online/research-academy/mcp" }
     }
   },
   "tools": [
@@ -24,7 +24,10 @@
     { "name": "docs_crear", "description": "Crea un Excel con formulas o un Word desde cero." },
     { "name": "citar", "description": "Referencias APA desde URLs." },
     { "name": "calcular", "description": "Calculadoras de IGV, punto de equilibrio, prestamo y margen." },
-    { "name": "cerebro_compartir", "description": "Codigo de solo lectura del cerebro." }
+    { "name": "cerebro_compartir", "description": "Codigo de solo lectura del cerebro." },
+    { "name": "configurar", "description": "Llaves y proveedores, solo en el navegador." },
+    { "name": "codigo", "description": "Codigo con Gemini, Mistral, Groq, Cerebras u OpenRouter." },
+    { "name": "render3d", "description": "Objeto 3D con three.js desde texto o foto." }
   ],
   "keywords": ["openrouter", "investigacion", "mcp-app", "espanol"],
   "license": "MIT",

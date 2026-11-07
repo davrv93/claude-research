@@ -18,6 +18,8 @@ const TIPOS = {
   json: 'application/json; charset=utf-8',
   png: 'image/png',
   pdf: 'application/pdf',
+  glb: 'model/gltf-binary',
+  js: 'text/javascript; charset=utf-8', ts: 'text/plain; charset=utf-8', jsx: 'text/plain; charset=utf-8', html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', py: 'text/x-python; charset=utf-8', sql: 'text/plain; charset=utf-8', java: 'text/plain; charset=utf-8', php: 'text/plain; charset=utf-8', sh: 'text/plain; charset=utf-8', yaml: 'text/yaml; charset=utf-8', zip: 'application/zip',
 };
 
 export const nombreSeguro = (n) => String(n || 'archivo').normalize('NFKD').replace(/[^\w.\-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) || 'archivo';

@@ -17,7 +17,7 @@ export const CONFIG_URI = 'ui://research-academy/config';
 export const CODIGO_URI = 'ui://research-academy/codigo';
 export const TRES_URI = 'ui://research-academy/3d';
 export const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
-export const VERSION = '0.12.8';
+export const VERSION = '0.12.9';
 
 // Metadatos de la interfaz: a qué dominios puede conectarse el panel y de dónde carga módulos.
 export function metaUi() {
@@ -64,7 +64,7 @@ export function buildServer() {
     'delegar',
     {
       title: 'Delegar a un modelo gratuito',
-      description: 'Pregunta a un modelo gratuito (conceptos estables). ' + NO_REPETIR,
+      description: 'USAR CUANDO: explica, qué es, cómo funciona, diferencia entre (conocimiento estable). ' + NO_REPETIR,
       inputSchema: {
         pregunta: z.string().min(1).describe('Pregunta en español.'),
         modelo,
@@ -83,7 +83,7 @@ export function buildServer() {
     'investigar',
     {
       title: 'Investigar en la web con un modelo gratuito',
-      description: 'Búsqueda web con 1 a 3 consultas de 3 a 6 palabras y síntesis con fuentes (actualidad, cifras, normativa). ' + NO_REPETIR,
+      description: 'USAR CUANDO: investiga, busca, vigente, actual, precio, ranking, ley, cifra de hoy. Búsqueda web con 1 a 3 consultas de 3 a 6 palabras y síntesis con fuentes. ' + NO_REPETIR,
       inputSchema: {
         pregunta: z.string().min(1).describe('Qué averiguar, en español.'),
         consultas: z
@@ -114,7 +114,7 @@ export function buildServer() {
     'mapa',
     {
       title: 'Mapa mental del cerebro del alumno',
-      description: 'Mapa mental de lo guardado en el cerebro del alumno. ' + NO_REPETIR,
+      description: 'USAR CUANDO: mapa mental, mi cerebro, qué tengo guardado, repasar lo investigado. ' + NO_REPETIR,
       inputSchema: {
         tema: z.string().optional().describe('Filtro por tema.'),
       },
@@ -153,7 +153,7 @@ export function buildServer() {
     'docs_analizar',
     {
       title: 'Analizar un archivo del alumno (Excel, CSV, PDF, Word)',
-      description: 'Panel Documentos: el alumno suelta Excel, CSV, PDF, Word, foto o audio; el panel lo analiza y transforma sin pasar por ti. Responde solo «Listo, suelta el archivo en el panel.» y el pie Consumo.',
+      description: 'USAR CUANDO: resume/analiza/corrige este Excel, CSV, PDF, Word, foto o audio, o ppt de este archivo, AUNQUE el archivo no esté adjunto: el alumno lo suelta en el panel, nunca lo pidas. Responde solo «Listo, suelta el archivo en el panel.» y el pie Consumo.',
       inputSchema: {
         instruccion: z.string().default('').describe('Qué quiere hacer el alumno.'),
         accion: z.enum(['', 'resumen', 'informe', 'ppt', 'corregir', 'anadir', 'referencias', 'estudiar', 'originalidad', 'ocr', 'redes', 'graficar', 'comparar', 'limpiar', 'mensajes', 'convertir', 'excel_corregir']).default('').describe('Acción pedida; vacío si solo analizar.'),
@@ -175,7 +175,7 @@ export function buildServer() {
     'docs_crear',
     {
       title: 'Crear un Excel o Word desde cero',
-      description: 'Crea desde cero un Excel con fórmulas o un Word. ' + NO_REPETIR,
+      description: 'USAR CUANDO: hazme una plantilla, crea un Excel, redacta un Word, carta, solicitud o informe nuevo (sin archivo previo). ' + NO_REPETIR,
       inputSchema: {
         tipo: z.enum(['excel', 'word']).describe('excel o word'),
         instruccion: z.string().min(3).describe('Qué debe contener.'),
@@ -194,7 +194,7 @@ export function buildServer() {
     'citar',
     {
       title: 'Citas en APA desde URLs',
-      description: 'Referencias APA 7 desde URLs. ' + NO_REPETIR,
+      description: 'USAR CUANDO: cita, referencia APA, bibliografía de URLs. ' + NO_REPETIR,
       inputSchema: { urls: z.array(z.string().url()).min(1).max(10).describe('URLs a citar.'), modelo },
       _meta: { ui: { resourceUri: PANEL_URI } },
     },
@@ -209,7 +209,7 @@ export function buildServer() {
     'calcular',
     {
       title: 'Calculadoras fijas',
-      description: 'Calculadora: igv, punto_equilibrio, prestamo o margen. ' + NO_REPETIR,
+      description: 'USAR CUANDO: igv, punto de equilibrio, préstamo o cuota, margen o precio. ' + NO_REPETIR,
       inputSchema: { tipo: z.enum(['igv', 'punto_equilibrio', 'prestamo', 'margen']).describe('Calculadora a abrir.') },
       _meta: { ui: { resourceUri: PANEL_URI } },
     },
@@ -247,7 +247,7 @@ export function buildServer() {
     'codigo',
     {
       title: 'Código con proveedores gratuitos',
-      description: 'Panel Código: escribir, corregir, explicar, revisar, tests o convertir con proveedores gratuitos. Arquitectura o seguridad: hazlo tú. ' + NO_REPETIR,
+      description: 'USAR CUANDO: código, función, script, error, bug, corrige este error, tests, convertir lenguaje. Nunca escribas el código tú. Arquitectura o seguridad: directo. ' + NO_REPETIR,
       inputSchema: {
         accion: z.enum(['escribir', 'corregir', 'explicar', 'revisar', 'tests', 'convertir']).default('escribir'),
         lenguaje: z.enum(['javascript', 'typescript', 'html', 'css', 'python', 'sql', 'java', 'php', 'bash', 'react', 'otro']).default('javascript'),
@@ -264,7 +264,7 @@ export function buildServer() {
     'render3d',
     {
       title: 'Objeto en 3D',
-      description: 'Panel 3D: objeto desde descripción o foto, renderizado en three.js, PNG y GLB. ' + NO_REPETIR,
+      description: 'USAR CUANDO: 3d, modelo 3d, render de un objeto, desde descripción o foto. ' + NO_REPETIR,
       inputSchema: {
         descripcion: z.string().default('').describe('Objeto a modelar; vacío si subirá foto.'),
         estilo: z.enum(['realista', 'lowpoly', 'juguete', 'esquema']).default('realista'),

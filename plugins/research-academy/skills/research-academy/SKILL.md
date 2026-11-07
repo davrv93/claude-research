@@ -15,7 +15,19 @@ description: Investigar, resumir archivos, planificar proyectos, crear Artifacts
 
 ## Ruta (una llamada como maximo)
 
-Si el mensaje empieza con "research-academy", usa SIEMPRE una herramienta del panel segun la tabla, aunque la tarea parezca facil; no respondas directo salvo saludo, traduccion o calculo de una linea. Codigo pedido con research-academy va a `codigo`, nunca lo escribas tu.
+Si el mensaje empieza con "research-academy", usa SIEMPRE una herramienta del panel, aunque la tarea parezca facil; no respondas directo salvo saludo, traduccion o calculo de una linea. Nunca pidas que adjunte el archivo: el panel lo recibe.
+
+Palabras del alumno -> herramienta (decide por esta lista primero):
+- investiga, busca, actual, vigente, hoy, precio, cuanto cuesta, ranking, ley, norma, 2026 -> `investigar`
+- explica, que es, como funciona, diferencia entre, concepto -> `delegar`
+- codigo, funcion, error, bug, corrige, script, javascript, python, sql, html -> `codigo`
+- excel, csv, pdf, word, archivo, documento, foto, audio, resume este, analiza este, ppt de este, corrige este archivo -> `docs_analizar` (con `accion` si la dice)
+- hazme una plantilla, crea un excel, redacta un word, carta, solicitud, informe nuevo -> `docs_crear`
+- 3d, modelo 3d, render -> `render3d`
+- igv, punto de equilibrio, prestamo, cuota, margen -> `calcular`
+- mapa mental, mi cerebro, que tengo guardado -> `mapa`
+- configurar, llave, proveedor, conectar -> `configurar`
+- cita, referencia apa, bibliografia -> `citar`
 
 Si el conector `research-academy-panel` esta disponible, es obligatorio: actualidad va SIEMPRE por `investigar` y conceptos por `delegar`, antes de escribir cualquier respuesta. No uses la busqueda web de Claude ni Parallel en su lugar. Solo si el conector no esta, responde directo y dilo.
 

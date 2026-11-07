@@ -1,0 +1,12 @@
+{
+  "name": "research-academy-marketplace",
+  "description": "Complementos de investigacion eficiente para alumnos de Claude Pro",
+  "owner": {"name": "Research Academy"},
+  "plugins": [
+    {
+      "name": "research-academy",
+      "source": "./plugins/research-academy",
+      "description": "Investigar, contrastar y construir Artifacts con contexto controlado"
+    }
+  ]
+}

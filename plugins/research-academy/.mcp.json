@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "parallel": {
+      "type": "http",
+      "url": "https://mcp.parallel.ai/mcp"
+    },
+    "openrouter": {
+      "type": "http",
+      "url": "https://mcp.openrouter.ai/mcp"
+    }
+  }
+}

@@ -11,7 +11,7 @@ H=ubuntu@3.151.56.55
 URL=https://jmd-learn.online/research-academy/mcp
 node probar-stdio.mjs >/dev/null
 ssh -i "$LLAVE" $H 'mkdir -p ~/research-academy/build'
-scp -q -i "$LLAVE" Dockerfile .dockerignore package.json package-lock.json mcp.mjs server.mjs panel.html nginx.conf $H:research-academy/build/
+scp -q -i "$LLAVE" Dockerfile .dockerignore package.json package-lock.json mcp.mjs server.mjs cerebro.mjs panel.html nginx.conf $H:research-academy/build/
 ssh -i "$LLAVE" $H URL="$URL" bash -s <<'REMOTO'
 set -euo pipefail
 cd ~/research-academy/build
@@ -19,6 +19,7 @@ sudo docker build -q -t research-academy:1 . >/dev/null
 sudo docker rm -f research-academy >/dev/null 2>&1 || true
 sudo docker run -d --name research-academy --restart unless-stopped --memory 96m --memory-swap 128m \
   -e SERVER_URL="$URL" -e ALLOWED_HOSTS=jmd-learn.online,127.0.0.1,localhost \
+  -v research-academy-datos:/app/datos \
   -p 127.0.0.1:18670:18670 research-academy:1 >/dev/null
 if ! sudo test -e /etc/nginx/snippets/research-academy.conf; then
   sudo install -m 644 nginx.conf /etc/nginx/snippets/research-academy.conf

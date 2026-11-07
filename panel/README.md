@@ -66,3 +66,13 @@ LLAVE=~/Downloads/curdilmer.pem ./desplegar.sh
 2. `npx @anthropic-ai/mcpb validate manifest.json && npx @anthropic-ai/mcpb pack . ../dist/research-academy-panel-<version>.mcpb` y borrar el `.mcpb` anterior de `dist/`.
 3. `LLAVE=... ./desplegar.sh`.
 4. Commit y push. El marketplace apunta a la URL fija; los alumnos de claude.ai web reciben el panel nuevo al instante. Los de Claude Desktop reinstalan el `.mcpb`.
+
+## Cerebro (0.6.0)
+
+Cada respuesta se guarda como nota: pregunta, respuesta, fuentes, fecha, y tema, hallazgos y etiquetas que extrae el modelo `:free` con una llamada extra (0 tokens de Claude). El alumno activa el cerebro con una **frase clave**; el id es su SHA-256 y el servidor guarda `datos/cerebro/<id>.json` (tope 2 MB, 60 peticiones por minuto por IP, volumen Docker `research-academy-datos`). Web y Desktop con la misma frase comparten cerebro; `localStorage` es cache.
+
+- Endpoints: `GET /cerebro/:id`, `PUT /cerebro/:id` (CORS abierto), `GET /salud`.
+- Herramientas MCP nuevas: `mapa(tema)` abre el mapa mental en el panel; `cerebro_buscar(frase_clave, tema)` devuelve hasta 5 notas resumidas a Claude, solo cuando el alumno lo pide.
+- Exportar `cerebro.md` (para un Proyecto de Claude) o `cerebro.json` (para importar en otro navegador). "Pasar índice a Claude" envía solo temas y hallazgos al chat.
+- Variables: `CEREBRO_URL` (base del almacén; por defecto `SERVER_URL` sin `/mcp`), `DATA_DIR`.
+- Respaldo en el EC2: `sudo docker run --rm -v research-academy-datos:/d -v ~/respaldos:/b alpine tar czf /b/cerebros-$(date +%F).tgz -C /d .`

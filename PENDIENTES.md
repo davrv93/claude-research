@@ -27,6 +27,10 @@ Pendiente: probar en claude.ai web (render, codigo de OpenRouter, terminos de Pa
 6. Medir con Configuracion > Uso: misma pregunta con panel, con conector OpenRouter clasico y sin nada.
 7. Tras validar: poner la URL en `plugins/research-academy/.mcp.json`, cambiar la fila OpenRouter de `SKILL.md` a `delegar`, subir version 0.5.0.
 
+## Cerebro y mapa mental (0.6.0, pendiente de probar en claude.ai)
+
+Hecho: almacén en el servidor por frase clave, guardado automático con tema y hallazgos, lista con buscar/borrar/exportar/importar, mapa mental SVG con plegado, herramientas `mapa` y `cerebro_buscar`, Skill 0.6.0. Probado: endpoints REST, herramientas por MCP, arranque del panel con DOM simulado. Falta: redesplegar (`desplegar.sh` ya monta el volumen), probar en claude.ai el guardado tras una investigacion, la sincronizacion web/Desktop y el mapa; verificar que `sendMessage` funcione para "Pasar a Claude".
+
 ## Hallazgos que cambian las prioridades
 
 Medido el 2026-11-07 contra los servidores reales:

@@ -8,17 +8,18 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
 import { z } from 'zod';
+import { buscarNotas, idDeFrase, leerCerebro, resumirNotas } from './cerebro.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 export const PANEL_URI = 'ui://research-academy/panel';
 export const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
-export const VERSION = '0.5.1';
+export const VERSION = '0.6.0';
 
 // Metadatos de la interfaz: a qué dominios puede conectarse el panel y de dónde carga módulos.
 export function metaUi() {
   const ui = {
     csp: {
-      connectDomains: ['https://openrouter.ai', 'https://mcp.parallel.ai'],
+      connectDomains: ['https://openrouter.ai', 'https://mcp.parallel.ai', ...(cerebroUrl() ? [new URL(cerebroUrl()).origin] : [])],
       resourceDomains: ['https://unpkg.com'],
     },
     permissions: { clipboardWrite: {} },
@@ -29,6 +30,9 @@ export function metaUi() {
   if (url) ui.domain = createHash('sha256').update(url).digest('hex').slice(0, 32) + '.claudemcpcontent.com';
   return ui;
 }
+
+// Base del almacén del cerebro: CEREBRO_URL explícita, o SERVER_URL sin /mcp. Vacío = solo local.
+export const cerebroUrl = () => (process.env.CEREBRO_URL || (process.env.SERVER_URL ? process.env.SERVER_URL.replace(/\/mcp\/?$/, '') : '')).replace(/\/$/, '');
 
 const esGratis = (modelo) => typeof modelo === 'string' && modelo.endsWith(':free');
 
@@ -110,6 +114,48 @@ export function buildServer() {
     },
   );
 
+  registerAppTool(
+    server,
+    'mapa',
+    {
+      title: 'Mapa mental del cerebro del alumno',
+      description:
+        'Muestra en el panel el mapa mental de lo que el alumno ha guardado en su cerebro (temas, hallazgos y fuentes de investigaciones anteriores). ' +
+        'Usar cuando pida ver, repasar u organizar lo investigado. ' +
+        NO_REPETIR,
+      inputSchema: {
+        tema: z.string().optional().describe('Tema para filtrar el mapa; vacío muestra todo.'),
+      },
+      _meta: { ui: { resourceUri: PANEL_URI } },
+    },
+    async ({ tema }) => ({
+      content: [{ type: 'text', text: `Mapa mental abierto en el panel${tema ? ` (tema: ${tema})` : ''}. Responde solo: 'Listo, revisa el panel.' más el pie Consumo.` }],
+      structuredContent: { modo: 'mapa', tema: tema || '' },
+    }),
+  );
+
+  server.registerTool(
+    'cerebro_buscar',
+    {
+      title: 'Buscar en el cerebro del alumno',
+      description:
+        'Recupera hallazgos guardados en el cerebro del alumno para usarlos en el chat. Solo cuando el alumno lo pide y da su frase clave. ' +
+        'Devuelve hasta 5 notas resumidas (tema, hallazgos, fuentes); sí entran al contexto de Claude.',
+      inputSchema: {
+        frase_clave: z.string().min(4).describe('La frase clave del cerebro del alumno, tal como la escribió en el panel.'),
+        tema: z.string().optional().describe('Palabras del tema a buscar; vacío devuelve las 5 notas más recientes.'),
+      },
+    },
+    async ({ frase_clave, tema }) => {
+      const cerebro = await leerCerebro(idDeFrase(frase_clave));
+      const notas = buscarNotas(cerebro.notas, tema);
+      return {
+        content: [{ type: 'text', text: `${notas.length} de ${cerebro.notas.length} notas.\n\n${resumirNotas(notas)}` }],
+        structuredContent: { total: cerebro.notas.length, devueltas: notas.length },
+      };
+    },
+  );
+
   registerAppResource(
     server,
     'Panel de Research Academy',
@@ -120,7 +166,7 @@ export function buildServer() {
         {
           uri: PANEL_URI,
           mimeType: RESOURCE_MIME_TYPE,
-          text: await readFile(join(AQUI, 'panel.html'), 'utf8'),
+          text: (await readFile(join(AQUI, 'panel.html'), 'utf8')).replace('__CEREBRO_URL__', cerebroUrl()),
           _meta: { ui: metaUi() },
         },
       ],

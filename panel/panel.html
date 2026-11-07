@@ -70,6 +70,27 @@
   .cifra { font: 12px var(--mono); text-align: right; white-space: nowrap; }
   .medidor-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 10px 0 6px; font-size: 12px; font-weight: 650; }
   .medidor-cab:first-of-type { margin-top: 0; }
+  .lista { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 320px; overflow: auto; }
+  .lista li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .lista .meta { font-size: 12px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
+  .lista .tema { font-weight: 650; }
+  .lista .hallazgos { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+  .lista details summary { cursor: pointer; font-size: 12.5px; color: var(--accent); }
+  .lista .detalle { margin-top: 6px; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
+  .sync { font-size: 12px; color: var(--muted); }
+  .sync.ok { color: var(--evitado); } .sync.mal { color: var(--bad); }
+  .mapa-caja { margin-top: 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); overflow: auto; }
+  .mapa-caja svg { display: block; min-width: 520px; width: 100%; font: 12px system-ui, sans-serif; }
+  .mapa-caja .nodo { cursor: pointer; }
+  .mapa-caja .nodo rect { fill: var(--s1); stroke: var(--line); rx: 8; }
+  .mapa-caja .nodo.raiz rect { fill: var(--accent); stroke: var(--accent); }
+  .mapa-caja .nodo.raiz text { fill: var(--on-accent); font-weight: 700; }
+  .mapa-caja .nodo.tema rect { fill: var(--accent-bg); stroke: var(--accent); }
+  .mapa-caja .nodo text { fill: var(--fg); }
+  .mapa-caja .nodo.hoja text { fill: var(--fg); }
+  .mapa-caja path { fill: none; stroke: var(--line); stroke-width: 1.5; }
+  .mapa-caja .vacio { padding: 20px; color: var(--muted); text-align: center; font-size: 13px; }
+  label.check { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -126,6 +147,41 @@
     <div class="fila"><button class="primario" id="btn-seguir">Preguntar</button></div>
   </section>
 
+  <section class="caja" id="mapa-seccion" hidden aria-labelledby="t-mapa">
+    <h2 id="t-mapa">Mapa mental</h2>
+    <div class="fila" style="margin-top:0">
+      <input id="mapa-filtro" placeholder="Filtrar por tema…" aria-label="Filtrar mapa por tema" style="max-width:260px">
+      <button id="btn-mapa-md">Copiar como Markdown</button>
+      <button id="btn-mapa-claude" title="Envía solo el esquema (temas y hallazgos) al chat; eso sí gasta tokens de Claude">Pasar esquema a Claude</button>
+    </div>
+    <div class="mapa-caja" id="mapa"></div>
+    <p class="nota">Clic en un tema para plegarlo o desplegarlo; clic en un hallazgo para ver la nota completa abajo.</p>
+  </section>
+
+  <section class="caja" id="cerebro" aria-labelledby="t-cerebro">
+    <h2 id="t-cerebro">Cerebro</h2>
+    <div id="cerebro-conectar">
+      <p class="nota" style="margin-top:0">Tus investigaciones se guardan como notas. Con una <b>frase clave</b> se sincronizan entre la web y la app de escritorio. Quien tenga la frase ve este cerebro: usa una larga y propia.</p>
+      <div class="fila" style="margin-top:6px"><input id="frase" placeholder="Frase clave, por ejemplo: bodega-rosa-sol-2026" autocomplete="off" spellcheck="false" style="max-width:360px"><button class="primario" id="btn-frase">Usar</button></div>
+    </div>
+    <div id="cerebro-activo" hidden>
+      <div class="fila" style="margin-top:0">
+        <span class="sync" id="sync"></span>
+        <label class="check"><input type="checkbox" id="auto" checked> Guardar cada respuesta automáticamente</label>
+        <button id="btn-cerebro-salir" style="min-height:0;padding:3px 9px;font-size:12px">Cambiar frase</button>
+      </div>
+      <div class="fila"><input id="buscar-nota" placeholder="Buscar en mis notas…" aria-label="Buscar en notas" style="max-width:300px"><button id="btn-ver-mapa">Ver mapa</button></div>
+      <ul class="lista" id="notas"></ul>
+      <div class="fila">
+        <button id="btn-exportar-md">Exportar cerebro.md</button>
+        <button id="btn-exportar-json">Exportar cerebro.json</button>
+        <label for="importar" style="display:inline-block"><span class="nota" style="margin:0;display:inline-block;padding:7px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;color:var(--fg)">Importar .json</span><input type="file" id="importar" accept="application/json" hidden></label>
+        <button id="btn-indice-claude" title="Envía solo el índice (temas y hallazgos) al chat; eso sí gasta tokens de Claude">Pasar índice a Claude</button>
+      </div>
+      <p class="nota" id="nota-cerebro" hidden></p>
+    </div>
+  </section>
+
   <section class="caja" aria-labelledby="t-medidor">
     <h2 id="t-medidor">Consumo</h2>
     <div class="medidor-cab"><span>Esta consulta</span><span class="nota" style="margin:0">tokens</span></div>
@@ -143,6 +199,10 @@ const CLAVE_VERIFIER = 'ra-pkce-verifier';
 const CLAVE_TOTAL = 'ra-medidor-total';
 const OPENROUTER = 'https://openrouter.ai';
 const PARALLEL = 'https://mcp.parallel.ai/mcp';
+const CEREBRO_URL = '__CEREBRO_URL__'; // lo inyecta el servidor; vacío = solo local
+const CLAVE_FRASE = 'ra-cerebro-frase';
+const CLAVE_NOTAS = 'ra-cerebro-notas';
+const CLAVE_AUTO = 'ra-cerebro-auto';
 const MAX_FUENTES = 5;
 const MAX_EXTRACTO = 900;
 
@@ -165,6 +225,7 @@ const estado = {
   ultimaRespuesta: '',
   consulta: { claude: 0, externo: 0, evitado: 0, costo: 0 },
   enCurso: false,
+  cerebro: { frase: null, id: null, notas: [], colapsados: new Set() },
 };
 
 // ---------- Interfaz ----------
@@ -442,6 +503,7 @@ function terminarRespuesta(turno, r, evitadoExtra = 0) {
   $('seguir').hidden = false;
   const externo = (r.usage.prompt_tokens || 0) + (r.usage.completion_tokens || 0);
   sumar({ externo, evitado: externo + evitadoExtra, costo: r.usage.cost || 0 });
+  guardarNota(turno.querySelector('.pregunta').textContent, r.texto, turno._fuentes || [], estado.peticion?.modo || 'delegar');
 }
 
 // Pregunta de seguimiento al modelo externo, con el historial del hilo. No pasa por Claude.
@@ -481,8 +543,266 @@ function continuar(turno) {
   seguirCon('Continúa exactamente donde te quedaste, sin repetir nada de lo ya dicho.');
 }
 
+// ---------- Cerebro: notas guardadas y sincronizadas ----------
+const sha256hex = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t).trim().normalize('NFC'))))].map((b) => b.toString(16).padStart(2, '0')).join('');
+const C = () => estado.cerebro;
+const leerNotasLocales = () => { try { return JSON.parse(guardado.leer(CLAVE_NOTAS) || '[]'); } catch { return []; } };
+const escribirNotasLocales = () => guardado.escribir(CLAVE_NOTAS, JSON.stringify(C().notas));
+const autoActivo = () => (guardado.leer(CLAVE_AUTO) ?? '1') === '1';
+const urlCerebro = () => (CEREBRO_URL && !CEREBRO_URL.startsWith('__') && C().id ? `${CEREBRO_URL}/cerebro/${C().id}` : null);
+
+function marcarSync(texto, clase = '') {
+  const el = $('sync');
+  el.textContent = texto;
+  el.className = 'sync ' + clase;
+}
+
+async function activarCerebro(frase) {
+  C().frase = frase;
+  C().id = await sha256hex(frase);
+  guardado.escribir(CLAVE_FRASE, frase);
+  C().notas = leerNotasLocales();
+  $('cerebro-conectar').hidden = true;
+  $('cerebro-activo').hidden = false;
+  $('auto').checked = autoActivo();
+  pintarCerebro();
+  await sincronizar();
+}
+
+function fusionar(a, b) {
+  const porId = new Map();
+  for (const n of [...a, ...b]) {
+    const previa = porId.get(n.id);
+    if (!previa || String(n.actualizado || n.fecha || '') > String(previa.actualizado || previa.fecha || '')) porId.set(n.id, n);
+  }
+  return [...porId.values()].sort((x, y) => String(y.fecha || '').localeCompare(String(x.fecha || '')));
+}
+
+async function sincronizar() {
+  const url = urlCerebro();
+  if (!url) return marcarSync('Solo en este navegador (sin servidor de sincronización).');
+  marcarSync('Sincronizando…');
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`servidor respondió ${r.status}`);
+    const remoto = await r.json();
+    const antes = JSON.stringify(C().notas);
+    C().notas = fusionar(C().notas, remoto.notas || []);
+    escribirNotasLocales();
+    pintarCerebro();
+    const remotoTexto = JSON.stringify(fusionar(remoto.notas || [], []));
+    if (JSON.stringify(C().notas) !== remotoTexto) await subir();
+    marcarSync(`Sincronizado · ${C().notas.length} notas`, 'ok');
+    if (antes !== JSON.stringify(C().notas)) pintarMapa();
+  } catch (e) {
+    marcarSync('Sin sincronizar: ' + e.message + '. Las notas quedan en este navegador.', 'mal');
+  }
+}
+
+async function subir() {
+  const url = urlCerebro();
+  if (!url) return;
+  const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notas: C().notas }) });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.error || `servidor respondió ${r.status}`);
+  }
+}
+
+// Pide al modelo gratuito tema, hallazgos y etiquetas de la respuesta, en JSON. Cuesta tokens externos, no de Claude.
+async function extraerMeta(pregunta, respuesta) {
+  const mensajes = [
+    { role: 'system', content: 'Devuelve SOLO un JSON válido, sin texto alrededor, con esta forma: {"tema":"2 a 4 palabras","hallazgos":["frase corta","frase corta","frase corta"],"etiquetas":["palabra","palabra"]}. En español.' },
+    { role: 'user', content: `Pregunta: ${pregunta}\n\nRespuesta:\n${respuesta.slice(0, 2500)}` },
+  ];
+  try {
+    const p = estado.peticion;
+    const cuerpo = { model: p.modelo, messages: mensajes, max_tokens: 400, reasoning: { enabled: false }, usage: { include: true } };
+    const r = await fetch(`${OPENROUTER}/api/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave()}`, 'X-Title': 'Research Academy Panel' }, body: JSON.stringify(cuerpo) });
+    const j = await r.json();
+    const texto = j.choices?.[0]?.message?.content || '';
+    const m = texto.match(/\{[\s\S]*\}/);
+    const meta = m ? JSON.parse(m[0]) : {};
+    const u = j.usage || {};
+    sumar({ externo: (u.prompt_tokens || 0) + (u.completion_tokens || 0), evitado: (u.prompt_tokens || 0) + (u.completion_tokens || 0), costo: u.cost || 0 });
+    return { tema: String(meta.tema || '').slice(0, 60), hallazgos: (meta.hallazgos || []).slice(0, 4).map((h) => String(h).slice(0, 160)), etiquetas: (meta.etiquetas || []).slice(0, 6).map((e) => String(e).slice(0, 30)) };
+  } catch {
+    return { tema: pregunta.slice(0, 40), hallazgos: [respuesta.split(/\n+/)[0].slice(0, 160)], etiquetas: [] };
+  }
+}
+
+async function guardarNota(pregunta, respuesta, fuentes, modo) {
+  if (!C().id || !$('auto').checked || !respuesta) return;
+  marcarSync('Guardando nota…');
+  const meta = await extraerMeta(pregunta, respuesta);
+  const ahora = new Date().toISOString();
+  C().notas.unshift({ id: `n_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`, fecha: ahora, actualizado: ahora, modo, pregunta, respuesta, fuentes: fuentes.map((f) => ({ url: f.url, title: f.title || '' })), ...meta });
+  escribirNotasLocales();
+  pintarCerebro();
+  pintarMapa();
+  try { await subir(); marcarSync(`Sincronizado · ${C().notas.length} notas`, 'ok'); }
+  catch (e) { marcarSync('Guardada aquí; no se pudo subir: ' + e.message, 'mal'); }
+}
+
+function pintarCerebro() {
+  const q = ($('buscar-nota').value || '').toLowerCase();
+  const notas = C().notas.filter((n) => !q || [n.tema, n.pregunta, ...(n.hallazgos || []), ...(n.etiquetas || [])].join(' ').toLowerCase().includes(q));
+  $('notas').innerHTML = notas.length
+    ? notas.map((n) => `<li data-id="${escapar(n.id)}"><div class="meta"><span class="tema">${escapar(n.tema || '(sin tema)')}</span><span>${escapar(String(n.fecha || '').slice(0, 10))} · ${escapar(n.modo || '')} · <a href="#" class="borrar" data-id="${escapar(n.id)}">borrar</a></span></div><div>${escapar(n.pregunta)}</div><ul class="hallazgos">${(n.hallazgos || []).map((h) => `<li>${escapar(h)}</li>`).join('')}</ul><details><summary>Respuesta completa y fuentes</summary><div class="detalle">${escapar(n.respuesta || '')}${(n.fuentes || []).length ? '\n\nFuentes:\n' + n.fuentes.map((f, i) => `[${i + 1}] ${escapar(f.url)}`).join('\n') : ''}</div></details></li>`).join('')
+    : `<li class="nota" style="margin:0">Sin notas${q ? ' que coincidan' : ' todavía: investiga algo y se guardará aquí'}.</li>`;
+}
+
+function cerebroMarkdown(filtro = '') {
+  const grupos = new Map();
+  for (const n of C().notas) {
+    if (filtro && !(n.tema || '').toLowerCase().includes(filtro.toLowerCase())) continue;
+    const t = n.tema || '(sin tema)';
+    if (!grupos.has(t)) grupos.set(t, []);
+    grupos.get(t).push(n);
+  }
+  let md = `# Cerebro Research Academy\n\nActualizado ${new Date().toISOString().slice(0, 10)} · ${C().notas.length} notas\n`;
+  for (const [tema, notas] of grupos) {
+    md += `\n## ${tema}\n`;
+    for (const n of notas) {
+      md += `\n### ${n.pregunta} (${String(n.fecha || '').slice(0, 10)})\n`;
+      for (const h of n.hallazgos || []) md += `- ${h}\n`;
+      for (const f of n.fuentes || []) md += `- Fuente: ${f.url}\n`;
+    }
+  }
+  return md;
+}
+
+function indiceTexto(filtro = '') {
+  const grupos = new Map();
+  for (const n of C().notas) {
+    if (filtro && !(n.tema || '').toLowerCase().includes(filtro.toLowerCase())) continue;
+    const t = n.tema || '(sin tema)';
+    if (!grupos.has(t)) grupos.set(t, new Set());
+    for (const h of n.hallazgos || []) grupos.get(t).add(h);
+  }
+  return [...grupos].map(([t, hs]) => `- ${t}: ${[...hs].join('; ')}`).join('\n');
+}
+
+async function descargar(nombre, texto, tipo) {
+  try { await navigator.clipboard.writeText(texto); } catch { /* sin portapapeles */ }
+  try {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([texto], { type: tipo }));
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch { /* el iframe puede bloquear descargas */ }
+  $('nota-cerebro').hidden = false;
+  $('nota-cerebro').textContent = `${nombre} copiado al portapapeles (y descargado si el navegador lo permite). Pégalo en un Proyecto de Claude o en un archivo.`;
+}
+
+async function pasarAlChat(texto, nota) {
+  const caps = app.getHostCapabilities?.() || {};
+  try {
+    if (caps.message && app.sendMessage) {
+      await app.sendMessage({ role: 'user', content: [{ type: 'text', text: texto }] });
+      nota.textContent = 'Enviado al chat. Claude lo lee ahora; esto sí gasta tokens de Claude.';
+      sumar({ claude: texto.length / 3.8 });
+    } else {
+      await navigator.clipboard.writeText(texto);
+      nota.textContent = 'Este host no permite enviar al chat desde el panel. Copiado: pégalo en el chat.';
+    }
+  } catch (e) { nota.textContent = 'No se pudo enviar: ' + e.message; }
+  nota.hidden = false;
+}
+
+// ---------- Mapa mental ----------
+function pintarMapa() {
+  const caja = $('mapa');
+  const filtro = ($('mapa-filtro').value || '').toLowerCase();
+  const grupos = new Map();
+  for (const n of C().notas) {
+    const t = n.tema || '(sin tema)';
+    if (filtro && !t.toLowerCase().includes(filtro) && !n.pregunta.toLowerCase().includes(filtro)) continue;
+    if (!grupos.has(t)) grupos.set(t, []);
+    for (const h of n.hallazgos || []) grupos.get(t).push({ texto: h, id: n.id });
+  }
+  if (!grupos.size) { caja.innerHTML = `<div class="vacio">${C().id ? 'Sin notas para mostrar. Investiga algo o cambia el filtro.' : 'Activa tu cerebro con una frase clave para ver el mapa.'}</div>`; return; }
+  const col = C().colapsados;
+  const corta = (t, n) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
+  const ancho = Math.max(520, caja.clientWidth || 600);
+  const xRaiz = 16, xTema = Math.round(ancho * 0.28), xHoja = Math.round(ancho * 0.56), altoFila = 26, sep = 10;
+  const filas = [];
+  let y = 12;
+  for (const [tema, hojas] of grupos) {
+    const plegado = col.has(tema);
+    const n = plegado ? 1 : Math.max(1, hojas.length);
+    const y0 = y;
+    const hs = plegado ? [] : hojas;
+    hs.forEach((h, i) => filas.push({ tipo: 'hoja', tema, texto: h.texto, id: h.id, y: y0 + i * (altoFila + 4) }));
+    const yTema = y0 + ((n - 1) * (altoFila + 4)) / 2;
+    filas.push({ tipo: 'tema', tema, y: yTema, n: hojas.length, plegado });
+    y = y0 + n * (altoFila + 4) + sep;
+  }
+  const alto = Math.max(y + 8, 80);
+  const yRaiz = alto / 2 - altoFila / 2;
+  const curva = (x1, y1, x2, y2) => `M${x1},${y1 + altoFila / 2} C${(x1 + x2) / 2},${y1 + altoFila / 2} ${(x1 + x2) / 2},${y2 + altoFila / 2} ${x2},${y2 + altoFila / 2}`;
+  const anchoTema = xHoja - xTema - 24, anchoHoja = ancho - xHoja - 16, anchoRaiz = xTema - xRaiz - 24;
+  let svg = `<svg viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Mapa mental del cerebro">`;
+  for (const f of filas) {
+    if (f.tipo === 'tema') svg += `<path d="${curva(xRaiz + anchoRaiz, yRaiz, xTema, f.y)}"></path>`;
+    else svg += `<path d="${curva(xTema + anchoTema, filas.find((t) => t.tipo === 'tema' && t.tema === f.tema).y, xHoja, f.y)}"></path>`;
+  }
+  svg += `<g class="nodo raiz"><rect x="${xRaiz}" y="${yRaiz}" width="${anchoRaiz}" height="${altoFila}"></rect><text x="${xRaiz + 10}" y="${yRaiz + 17}">${escapar(corta(filtro ? `Cerebro · ${filtro}` : 'Mi cerebro', Math.floor(anchoRaiz / 7)))}</text></g>`;
+  for (const f of filas) {
+    if (f.tipo === 'tema') svg += `<g class="nodo tema" data-tema="${escapar(f.tema)}"><rect x="${xTema}" y="${f.y}" width="${anchoTema}" height="${altoFila}"></rect><text x="${xTema + 10}" y="${f.y + 17}">${escapar(corta(`${f.plegado ? '▸' : '▾'} ${f.tema} (${f.n})`, Math.floor(anchoTema / 6.8)))}</text></g>`;
+    else svg += `<g class="nodo hoja" data-id="${escapar(f.id)}"><rect x="${xHoja}" y="${f.y}" width="${anchoHoja}" height="${altoFila}"></rect><text x="${xHoja + 8}" y="${f.y + 17}"><title>${escapar(f.texto)}</title>${escapar(corta(f.texto, Math.floor(anchoHoja / 6.6)))}</text></g>`;
+  }
+  svg += '</svg>';
+  caja.innerHTML = svg;
+}
+
+$('mapa').addEventListener('click', (e) => {
+  const tema = e.target.closest('.nodo.tema');
+  const hoja = e.target.closest('.nodo.hoja');
+  if (tema) {
+    const t = tema.dataset.tema;
+    C().colapsados.has(t) ? C().colapsados.delete(t) : C().colapsados.add(t);
+    pintarMapa();
+  } else if (hoja) {
+    const li = $('notas').querySelector(`li[data-id="${CSS.escape(hoja.dataset.id)}"]`);
+    if (li) { li.querySelector('details').open = true; li.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  }
+});
+$('mapa-filtro').addEventListener('input', pintarMapa);
+$('btn-mapa-md').addEventListener('click', () => descargar('cerebro-mapa.md', cerebroMarkdown($('mapa-filtro').value), 'text/markdown'));
+$('btn-mapa-claude').addEventListener('click', () => pasarAlChat(`Esquema de mi cerebro Research Academy${$('mapa-filtro').value ? ` (tema: ${$('mapa-filtro').value})` : ''}:\n${indiceTexto($('mapa-filtro').value)}`, $('nota-cerebro')));
+$('btn-frase').addEventListener('click', () => { const f = $('frase').value.trim(); if (f.length >= 4) activarCerebro(f); });
+$('frase').addEventListener('keydown', (e) => e.key === 'Enter' && $('btn-frase').click());
+$('btn-cerebro-salir').addEventListener('click', () => { guardado.borrar(CLAVE_FRASE); C().frase = null; C().id = null; $('cerebro-activo').hidden = true; $('cerebro-conectar').hidden = false; });
+$('auto').addEventListener('change', () => guardado.escribir(CLAVE_AUTO, $('auto').checked ? '1' : '0'));
+$('buscar-nota').addEventListener('input', pintarCerebro);
+$('notas').addEventListener('click', async (e) => {
+  const b = e.target.closest('a.borrar');
+  if (!b) return;
+  e.preventDefault();
+  C().notas = C().notas.filter((n) => n.id !== b.dataset.id);
+  escribirNotasLocales(); pintarCerebro(); pintarMapa();
+  try { await subir(); marcarSync(`Sincronizado · ${C().notas.length} notas`, 'ok'); } catch (err) { marcarSync('Borrada aquí; no se pudo subir: ' + err.message, 'mal'); }
+});
+$('btn-ver-mapa').addEventListener('click', () => { $('mapa-seccion').hidden = false; pintarMapa(); $('mapa-seccion').scrollIntoView({ behavior: 'smooth' }); });
+$('btn-exportar-md').addEventListener('click', () => descargar('cerebro.md', cerebroMarkdown(), 'text/markdown'));
+$('btn-exportar-json').addEventListener('click', () => descargar('cerebro.json', JSON.stringify({ notas: C().notas }, null, 1), 'application/json'));
+$('importar').addEventListener('change', async (e) => {
+  const f = e.target.files?.[0]; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    C().notas = fusionar(C().notas, j.notas || []);
+    escribirNotasLocales(); pintarCerebro(); pintarMapa();
+    await subir(); marcarSync(`Importado y sincronizado · ${C().notas.length} notas`, 'ok');
+  } catch (err) { marcarSync('No se pudo importar: ' + err.message, 'mal'); }
+  e.target.value = '';
+});
+$('btn-indice-claude').addEventListener('click', () => pasarAlChat(`Índice de mi cerebro Research Academy:\n${indiceTexto()}`, $('nota-cerebro')));
+
 // ---------- Conexión con el host ----------
-const app = new App({ name: 'research-academy-panel', version: '0.5.1' });
+const app = new App({ name: 'research-academy-panel', version: '0.6.0' });
 
 function aplicarTema(ctx) {
   const t = ctx?.theme;
@@ -493,7 +813,7 @@ function aplicarTema(ctx) {
 app.ontoolinput = (params) => {
   estado.entradaChars = JSON.stringify(params?.arguments || {}).length;
   const a = params?.arguments || {};
-  if (a.pregunta) {
+  if (a.pregunta && !('tema' in a && !a.pregunta)) {
     $('consulta').hidden = false;
     if (!estado.turnoPendiente) estado.turnoPendiente = nuevoTurno(a.pregunta);
     $('modelo').textContent = a.modelo || '';
@@ -512,6 +832,16 @@ app.ontoolresult = async (result) => {
     if (estado.turnoPendiente) { estado.turnoPendiente.querySelector('.respuesta').classList.remove('cargando'); estado.turnoPendiente = null; }
     mostrarEstado('');
     mostrarError('error', (result?.content || []).map((c) => c.text).join(' ') || 'La herramienta devolvió un error.');
+    return;
+  }
+  if (sc.modo === 'mapa') {
+    if (estado.turnoPendiente) { estado.turnoPendiente.remove(); estado.turnoPendiente = null; }
+    mostrarEstado('');
+    $('mapa-seccion').hidden = false;
+    $('mapa-filtro').value = sc.tema || '';
+    if (C().id) await sincronizar();
+    pintarMapa();
+    $('mapa-seccion').scrollIntoView({ behavior: 'smooth' });
     return;
   }
   estado.peticion = sc;
@@ -580,6 +910,7 @@ $('btn-reiniciar').addEventListener('click', () => {
 pintarMedidor('medidor-consulta', estado.consulta);
 pintarMedidor('medidor-total', leerTotal());
 if (!llave()) $('conectar').hidden = false;
+{ const f = guardado.leer(CLAVE_FRASE); if (f) activarCerebro(f); else pintarMapa(); }
 
 try {
   await app.connect();

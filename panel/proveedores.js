@@ -1,7 +1,7 @@
 // Capa de proveedores de modelos para los paneles (OpenAI-compatible, streaming SSE). Llaves solo en localStorage del panel.
 (function (global) {
   const PROVEEDORES = {
-    gemini: { nombre: 'Gemini (Google AI Studio)', base: 'https://generativelanguage.googleapis.com/v1beta/openai', clave: 'ra-key-gemini', ayuda: 'https://aistudio.google.com/apikey', gratis: 'nivel gratuito: 1 500 peticiones/día en Flash', modelos: { codigo: 'gemini-3.8-flash', texto: 'gemini-3.8-flash', vision: 'gemini-3.8-flash' }, elegir: { codigo: [/^gemini-[\d.]+-flash$/, /^gemini-[\d.]+-pro$/, /^gemini-[\d.]+-flash-lite$/], texto: [/^gemini-[\d.]+-flash$/, /^gemini-[\d.]+-flash-lite$/, /^gemini-[\d.]+-pro$/], vision: [/^gemini-[\d.]+-flash$/, /^gemini-[\d.]+-pro$/] } },
+    gemini: { nombre: 'Gemini (Google AI Studio)', base: 'https://generativelanguage.googleapis.com/v1beta/openai', nativo: 'https://generativelanguage.googleapis.com/v1beta', clave: 'ra-key-gemini', ayuda: 'https://aistudio.google.com/apikey', gratis: 'nivel gratuito: 1 500 peticiones/día en Flash', modelos: { codigo: 'gemini-2.5-flash', texto: 'gemini-2.5-flash', vision: 'gemini-2.5-flash' }, elegir: { codigo: [/^gemini-[\d.]+-flash$/, /^gemini-[\d.]+-pro$/, /^gemini-[\d.]+-flash-lite$/], texto: [/^gemini-[\d.]+-flash$/, /^gemini-[\d.]+-flash-lite$/, /^gemini-[\d.]+-pro$/], vision: [/^gemini-[\d.]+-flash$/, /^gemini-[\d.]+-pro$/] } },
     mistral: { nombre: 'Mistral', base: 'https://api.mistral.ai/v1', clave: 'ra-key-mistral', ayuda: 'https://console.mistral.ai/api-keys', gratis: 'plan experimental gratuito con límite de ritmo', modelos: { codigo: 'codestral-latest', texto: 'mistral-small-latest', vision: 'pixtral-12b-2409' }, elegir: { codigo: [/^codestral-latest$/, /^codestral/, /^devstral/, /^mistral-small-latest$/], texto: [/^mistral-small-latest$/, /^mistral-medium-latest$/, /^mistral-small/], vision: [/^pixtral-large-latest$/, /^pixtral/, /^mistral-medium-latest$/] } },
     groq: { nombre: 'Groq', base: 'https://api.groq.com/openai/v1', clave: 'ra-key-groq', ayuda: 'https://console.groq.com/keys', gratis: 'nivel gratuito con límite por minuto y día', modelos: { codigo: 'llama-3.3-70b-versatile', texto: 'llama-3.3-70b-versatile' }, elegir: { codigo: [/^llama-3\.3-70b-versatile$/, /qwen.*coder/i, /llama.*70b/, /^llama/], texto: [/^llama-3\.3-70b-versatile$/, /llama.*70b/, /^llama/, /gemma/] } },
     cerebras: { nombre: 'Cerebras', base: 'https://api.cerebras.ai/v1', clave: 'ra-key-cerebras', ayuda: 'https://cloud.cerebras.ai', gratis: 'nivel gratuito con límite por minuto', modelos: { codigo: 'llama-3.3-70b', texto: 'llama-3.3-70b' }, elegir: { codigo: [/^llama-3\.3-70b$/, /qwen.*coder/i, /llama.*70b/, /^llama/, /^qwen/], texto: [/^llama-3\.3-70b$/, /llama.*70b/, /^llama/, /^qwen/] } },
@@ -39,10 +39,13 @@
     if (!forzar) { try { const c = JSON.parse(guardado.leer(clave) || 'null'); if (c && Date.now() - c.t < 86400000 && Array.isArray(c.ids)) return c.ids; } catch {} }
     const llave = leerLlave(proveedor); if (!llave) return [];
     try {
-      const r = await fetchT(`${p.base}/models`, { headers: { Authorization: `Bearer ${llave}`, ...(p.extra || {}) } }, 15000);
+      const r = p.nativo
+        ? await fetchT(`${p.nativo}/models?pageSize=200`, { headers: { 'x-goog-api-key': llave } }, 15000)
+        : await fetchT(`${p.base}/models`, { headers: { Authorization: `Bearer ${llave}`, ...(p.extra || {}) } }, 15000);
       if (!r.ok) return [];
       const j = await r.json();
-      const ids = (j.data || j.models || []).map((m) => String(m.id || m.name || '').replace(/^models\//, '')).filter(Boolean);
+      const lista = (j.data || j.models || []).filter((m) => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'));
+      const ids = lista.map((m) => String(m.id || m.name || '').replace(/^models\//, '')).filter(Boolean);
       guardado.escribir(clave, JSON.stringify({ t: Date.now(), ids }));
       return ids;
     } catch { return []; }
@@ -88,10 +91,56 @@
     throw ultimo;
   }
 
+  // Gemini nativo: mensajes OpenAI -> systemInstruction + contents (texto e imagenes data:), respuesta por SSE.
+  function aGemini(mensajes) {
+    const sys = mensajes.filter((m) => m.role === 'system').map((m) => (typeof m.content === 'string' ? m.content : (m.content || []).map((c) => c.text || '').join('\n'))).join('\n');
+    const contents = mensajes.filter((m) => m.role !== 'system').map((m) => {
+      const partes = typeof m.content === 'string' ? [{ text: m.content }] : (m.content || []).map((c) => {
+        if (c.type === 'text') return { text: c.text };
+        if (c.type === 'image_url') { const u = c.image_url?.url || ''; const mm = u.match(/^data:([^;]+);base64,(.+)$/); return mm ? { inlineData: { mimeType: mm[1], data: mm[2] } } : { text: u }; }
+        if (c.type === 'input_audio') return { inlineData: { mimeType: 'audio/' + (c.input_audio?.format || 'mp3'), data: c.input_audio?.data || '' } };
+        return { text: JSON.stringify(c) };
+      });
+      return { role: m.role === 'assistant' ? 'model' : 'user', parts: partes };
+    });
+    return { sys, contents };
+  }
+  async function llamarGeminiNativo({ p, llave, mod, mensajes, maxTokens, temperatura, alTexto, stream }) {
+    const { sys, contents } = aGemini(mensajes);
+    const cuerpo = { contents, generationConfig: { maxOutputTokens: maxTokens, ...(temperatura !== undefined ? { temperature: temperatura } : {}) } };
+    if (sys) cuerpo.systemInstruction = { parts: [{ text: sys }] };
+    const url = `${p.nativo}/models/${mod}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
+    const r = await fetchT(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': llave }, body: JSON.stringify(cuerpo) }, stream ? 120000 : 60000);
+    return r;
+  }
+  function usoGemini(u) { return u ? { prompt_tokens: u.promptTokenCount || 0, completion_tokens: u.candidatesTokenCount || 0, total_tokens: u.totalTokenCount || 0 } : {}; }
+
   async function llamarUno({ proveedor, tarea = 'texto', modelo, mensajes, maxTokens = 1500, temperatura, alTexto, stream = true, _reintento = false }) {
     const p = PROVEEDORES[proveedor]; if (!p) throw new Error('proveedor desconocido');
     const llave = leerLlave(proveedor); if (!llave) throw Object.assign(new Error(`${p.nombre}: sin llave`), { sinLlave: true });
     const mod = modelo || await elegirModelo(proveedor, tarea);
+    if (p.nativo) {
+      const inicio = Date.now();
+      const r = await llamarGeminiNativo({ p, llave, mod, mensajes, maxTokens, temperatura, alTexto, stream });
+      if (!r.ok) { const crudo = typeof r.text === 'function' ? await r.text().catch(() => '') : ''; let j = {}; try { j = JSON.parse(crudo); } catch {} const motivo = j.error?.message || (r.status === 503 ? 'servicio saturado en este momento' : r.status === 429 ? 'límite de peticiones alcanzado' : ''); throw Object.assign(new Error(`${p.nombre} respondió ${r.status}: ${motivo} (modelo ${mod})`.trim()), { status: r.status, cuerpo: crudo.slice(0, 500) }); }
+      let texto = '', usage = {}, finish;
+      if (!stream) { const j = await r.json(); texto = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join(''); usage = usoGemini(j.usageMetadata); finish = j.candidates?.[0]?.finishReason; }
+      else {
+        const lector = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+        for (;;) {
+          const { value, done } = await lector.read(); if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i; while ((i = buf.indexOf('\n')) >= 0) {
+            const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+            if (!l.startsWith('data: ')) continue;
+            let j; try { j = JSON.parse(l.slice(6)); } catch { continue; }
+            const t = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join(''); if (t) { texto += t; alTexto?.(texto); }
+            if (j.candidates?.[0]?.finishReason) finish = j.candidates[0].finishReason; if (j.usageMetadata) usage = usoGemini(j.usageMetadata);
+          }
+        }
+      }
+      return { texto: texto.trim(), usage, finish, proveedor, modelo: mod, ms: Date.now() - inicio };
+    }
     const cuerpo = { model: mod, messages: mensajes, max_tokens: maxTokens, stream };
     if (temperatura !== undefined) cuerpo.temperature = temperatura;
     if (proveedor === 'openrouter') { cuerpo.usage = { include: true }; cuerpo.reasoning = { enabled: false }; }

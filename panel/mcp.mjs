@@ -1,43 +1,78 @@
-import { readFileSync } from 'node:fs';
+// Servidor MCP del panel de delegación. No guarda llaves ni llama a ningún modelo: solo registra las
+// herramientas y entrega panel.html. La consulta la hace el panel desde el navegador del usuario, con su
+// propia llave de OpenRouter, para que la respuesta no entre al contexto de Claude.
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerAppTool, registerAppResource, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
+import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
 import { z } from 'zod';
 
-// URL publica del servidor (https://host/mcp). Define ui.domain para Claude.
-const SERVER_URL = process.env.SERVER_URL ?? '';
-export const UI_DOMAIN = SERVER_URL
-  ? createHash('sha256').update(SERVER_URL).digest('hex').slice(0, 32) + '.claudemcpcontent.com'
-  : undefined;
-const PANEL_URI = 'ui://research-academy/panel';
-const PANEL_HTML = readFileSync(new URL('./panel.html', import.meta.url), 'utf8');
-const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
+const AQUI = dirname(fileURLToPath(import.meta.url));
+export const PANEL_URI = 'ui://research-academy/panel';
+export const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
+export const VERSION = '0.4.0';
+
+// Metadatos de la interfaz: a qué dominios puede conectarse el panel y de dónde carga módulos.
+export function metaUi() {
+  const ui = {
+    csp: {
+      connectDomains: ['https://openrouter.ai', 'https://mcp.parallel.ai'],
+      resourceDomains: ['https://unpkg.com'],
+    },
+    permissions: { clipboardWrite: {} },
+    prefersBorder: true,
+  };
+  // Origen estable del panel en claude.ai: así localStorage (la llave) sobrevive entre conversaciones.
+  const url = process.env.SERVER_URL;
+  if (url) ui.domain = createHash('sha256').update(url).digest('hex').slice(0, 32) + '.claudemcpcontent.com';
+  return ui;
+}
+
+const esGratis = (modelo) => typeof modelo === 'string' && modelo.endsWith(':free');
+
+const rechazo = (modelo) => ({
+  isError: true,
+  content: [{ type: 'text', text: `Modelo rechazado: «${modelo}» no termina en :free. Este panel solo usa modelos gratuitos de OpenRouter.` }],
+});
+
+const linea = (modelo) => ({
+  type: 'text',
+  text: `Panel abierto con ${modelo}. El alumno ve la respuesta ahí. Responde solo: 'Listo, revisa el panel.' más el pie Consumo.`,
+});
+
+const NO_REPETIR =
+  'La respuesta se muestra al usuario en un panel y NO llega a ti. No repitas, no resumas ni completes lo que muestra el panel; ' +
+  "responde solo «Listo, revisa el panel.» y el pie de consumo.";
+
+const modelo = z
+  .string()
+  .default(MODELO_POR_DEFECTO)
+  .describe('Id de un modelo gratuito de OpenRouter; debe terminar en :free.');
+const maxPalabras = z.number().int().min(20).max(1200).default(150).describe('Largo máximo de la respuesta, en palabras.');
 
 export function buildServer() {
-  const server = new McpServer({ name: 'research-academy-panel', version: '0.3.0' });
+  const server = new McpServer({ name: 'research-academy-panel', version: VERSION });
 
   registerAppTool(
     server,
     'delegar',
     {
-      title: 'Delegar al panel',
+      title: 'Delegar a un modelo gratuito',
       description:
-        'Envia una pregunta a un modelo gratuito de OpenRouter. La respuesta se muestra al alumno en un panel dentro del chat y NO vuelve al modelo. Tras llamar, responde solo con una frase corta y el pie Consumo. No repitas ni resumas la respuesta del panel.',
+        'Envía una pregunta a un modelo gratuito de OpenRouter. El modelo la responde en español dentro de un panel que ve el usuario. ' +
+        NO_REPETIR,
       inputSchema: {
-        pregunta: z.string().min(3).max(4000).describe('Pregunta o instruccion para el modelo externo, en espanol.'),
-        modelo: z.string().default(DEFAULT_MODEL).describe('Id de modelo OpenRouter terminado en :free.'),
-        max_palabras: z.number().int().min(30).max(600).default(150).describe('Longitud maxima de la respuesta externa.'),
+        pregunta: z.string().min(1).describe('La pregunta, en español, tal como la debe responder el modelo externo.'),
+        modelo,
+        max_palabras: maxPalabras,
       },
       _meta: { ui: { resourceUri: PANEL_URI } },
     },
     async ({ pregunta, modelo, max_palabras }) => {
-      if (!modelo.endsWith(':free')) {
-        return { content: [{ type: 'text', text: 'Rechazado: solo modelos :free.' }], isError: true };
-      }
-      return {
-        content: [{ type: 'text', text: `Panel abierto con ${modelo}. El alumno ve la respuesta ahi. Responde solo: "Listo, revisa el panel." mas el pie Consumo.` }],
-        structuredContent: { modo: 'delegar', pregunta, modelo, max_palabras },
-      };
+      if (!esGratis(modelo)) return rechazo(modelo);
+      return { content: [linea(modelo)], structuredContent: { modo: 'delegar', pregunta, modelo, max_palabras } };
     },
   );
 
@@ -45,38 +80,52 @@ export function buildServer() {
     server,
     'investigar',
     {
-      title: 'Investigar en el panel',
+      title: 'Investigar en la web con un modelo gratuito',
       description:
-        'Investigacion web completa fuera de Claude: el panel busca en la web (Parallel) y un modelo gratuito de OpenRouter redacta la sintesis con fuentes. El alumno ve todo en el panel; nada vuelve al modelo. Usar para actualidad, precios, rankings, normativa, estadisticas. Tras llamar, responde solo con una frase corta y el pie Consumo.',
+        'Busca en la web (Parallel) con 1 a 3 consultas cortas y pide a un modelo gratuito de OpenRouter una respuesta en español ' +
+        'que cite solo esas fuentes con [n]. Todo ocurre en un panel que ve el usuario. ' +
+        NO_REPETIR,
       inputSchema: {
-        pregunta: z.string().min(3).max(2000).describe('Lo que el alumno quiere saber, en espanol.'),
-        consultas: z.array(z.string().min(3).max(80)).min(1).max(3).describe('2 o 3 consultas de busqueda de 3 a 6 palabras, relacionadas con la pregunta.'),
-        modelo: z.string().default(DEFAULT_MODEL).describe('Id de modelo OpenRouter terminado en :free.'),
-        max_palabras: z.number().int().min(50).max(400).default(150).describe('Longitud maxima de la sintesis.'),
+        pregunta: z.string().min(1).describe('Lo que se quiere averiguar, en español.'),
+        consultas: z
+          .array(
+            z
+              .string()
+              .refine((s) => {
+                const n = s.trim().split(/\s+/).filter(Boolean).length;
+                return n >= 3 && n <= 6;
+              }, 'Cada consulta debe tener de 3 a 6 palabras.'),
+          )
+          .min(1)
+          .max(3)
+          .describe('De 1 a 3 consultas de búsqueda, de 3 a 6 palabras cada una.'),
+        modelo,
+        max_palabras: maxPalabras,
       },
       _meta: { ui: { resourceUri: PANEL_URI } },
     },
     async ({ pregunta, consultas, modelo, max_palabras }) => {
-      if (!modelo.endsWith(':free')) {
-        return { content: [{ type: 'text', text: 'Rechazado: solo modelos :free.' }], isError: true };
-      }
-      return {
-        content: [{ type: 'text', text: `Panel investigando con Parallel + ${modelo}. El alumno ve fuentes y sintesis ahi. Responde solo: "Listo, revisa el panel." mas el pie Consumo.` }],
-        structuredContent: { modo: 'investigar', pregunta, consultas, modelo, max_palabras },
-      };
+      if (!esGratis(modelo)) return rechazo(modelo);
+      return { content: [linea(modelo)], structuredContent: { modo: 'investigar', pregunta, consultas, modelo, max_palabras } };
     },
   );
 
-  registerAppResource(server, 'Panel Research Academy', PANEL_URI, { description: 'Panel que consulta OpenRouter desde el navegador del alumno' }, async () => ({
-    contents: [{
-      uri: PANEL_URI,
-      mimeType: RESOURCE_MIME_TYPE,
-      text: PANEL_HTML,
-      _meta: { ui: {
-        ...(UI_DOMAIN ? { domain: UI_DOMAIN } : {}),
-        csp: { connectDomains: ['https://openrouter.ai', 'https://mcp.parallel.ai'], resourceDomains: ['https://unpkg.com'] },
-      } },
-    }],
-  }));
+  registerAppResource(
+    server,
+    'Panel de Research Academy',
+    PANEL_URI,
+    { description: 'Panel donde el usuario ve la respuesta del modelo gratuito.', mimeType: RESOURCE_MIME_TYPE, _meta: { ui: metaUi() } },
+    async () => ({
+      contents: [
+        {
+          uri: PANEL_URI,
+          mimeType: RESOURCE_MIME_TYPE,
+          text: await readFile(join(AQUI, 'panel.html'), 'utf8'),
+          _meta: { ui: metaUi() },
+        },
+      ],
+    }),
+  );
+
   return server;
 }

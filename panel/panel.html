@@ -1,168 +1,516 @@
-<!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8"><meta name="color-scheme" content="light dark"><title>Research Academy</title>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Academy</title>
 <style>
-  body{font:14px/1.45 system-ui,sans-serif;margin:0;padding:12px;max-width:720px}
-  .muted{opacity:.7;font-size:12px} .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
-  button{padding:6px 10px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer}
-  input,textarea{width:100%;box-sizing:border-box;padding:6px 8px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;font:inherit}
-  #resp{white-space:pre-wrap;border-left:3px solid currentColor;padding:6px 10px;margin:8px 0;min-height:2em}
-  #auth,#ask{display:none} .hidden{display:none!important}
-  code{font-size:12px;word-break:break-all}
-  #medidor{margin:10px 0;padding:8px 10px;border:1px solid currentColor;border-radius:10px}
-  .barra{display:grid;grid-template-columns:110px 1fr 90px;gap:8px;align-items:center;margin:4px 0;font-size:12px}
-  .barra i{display:block;height:10px;border-radius:5px;background:currentColor;opacity:.75;min-width:2px}
-  .barra.claude i{opacity:1} .barra.evitado i{opacity:.35}
-</style></head>
+  :root {
+    --bg: #ffffff; --s1: #f6f5fb; --s2: #eceaf6; --fg: #17161f; --muted: #5d5a6b; --line: rgba(60, 52, 140, .16);
+    --accent: #5a49d6; --on-accent: #fff; --accent-bg: rgba(90, 73, 214, .1);
+    --claude: #c2622d; --externo: #5a49d6; --evitado: #1f7a4d; --bad: #b42318; --bad-bg: rgba(180, 35, 24, .08);
+    --r: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17161f; --s1: #201f2c; --s2: #2a2839; --fg: #ecebf5; --muted: #b0adc2; --line: rgba(190, 185, 255, .16);
+      --accent: #a99cff; --on-accent: #16142b; --accent-bg: rgba(169, 156, 255, .14);
+      --claude: #f0a070; --externo: #a99cff; --evitado: #5fd398; --bad: #ff8a80; --bad-bg: rgba(255, 138, 128, .1);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17161f; --s1: #201f2c; --s2: #2a2839; --fg: #ecebf5; --muted: #b0adc2; --line: rgba(190, 185, 255, .16);
+    --accent: #a99cff; --on-accent: #16142b; --accent-bg: rgba(169, 156, 255, .14);
+    --claude: #f0a070; --externo: #a99cff; --evitado: #5fd398; --bad: #ff8a80; --bad-bg: rgba(255, 138, 128, .1);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 14px 16px 16px; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+  h2 { margin: 0 0 6px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .cab { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .modelo { font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .caja { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--s1); }
+  .pregunta { margin: 0; font-weight: 600; }
+  .estado { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 13px; }
+  .estado[hidden] { display: none; }
+  .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: latido 1.2s ease-in-out infinite; }
+  @keyframes latido { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .punto { animation: none; } }
+  .respuesta { margin-top: 10px; overflow-wrap: anywhere; }
+  .respuesta p { margin: 0 0 8px; }
+  .respuesta code { font: 12.5px var(--mono); background: var(--s2); padding: 1px 4px; border-radius: 4px; }
+  .respuesta a.cita { font-size: 11px; font-weight: 700; text-decoration: none; vertical-align: super; color: var(--accent); }
+  .error { margin-top: 10px; padding: 10px 12px; border-radius: var(--r); background: var(--bad-bg); color: var(--bad); }
+  ol.fuentes { margin: 0; padding-left: 20px; font-size: 13px; }
+  ol.fuentes li { margin: 3px 0; overflow-wrap: anywhere; }
+  ol.fuentes a { color: var(--accent); }
+  .uso { margin-top: 8px; font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 12px; min-height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+  button:hover { background: var(--s2); }
+  button.primario { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  button.primario:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input, textarea { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+  textarea { min-height: 60px; resize: vertical; }
+  .nota { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+  .enlace { font: 12px var(--mono); overflow-wrap: anywhere; color: var(--accent); }
+  .medidor { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; gap: 5px 10px; align-items: center; font-size: 12.5px; }
+  .barra { height: 8px; border-radius: 4px; background: var(--s2); overflow: hidden; }
+  .barra i { display: block; height: 100%; border-radius: 4px; min-width: 2px; }
+  .cifra { font: 12px var(--mono); text-align: right; white-space: nowrap; }
+  .medidor-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 10px 0 6px; font-size: 12px; font-weight: 650; }
+  .medidor-cab:first-of-type { margin-top: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
 <body>
-<div id="estado" class="muted">Esperando pregunta…</div>
-<div id="preg" class="muted"></div>
-<div id="resp"></div>
-<div id="uso" class="muted"></div>
-<ol id="fuentes" class="muted"></ol>
-<div id="medidor" class="hidden">
-  <div class="muted">Tokens de esta consulta</div>
-  <div class="barra claude"><span>Claude (estimado)</span><i id="b-claude"></i><b id="n-claude">0</b></div>
-  <div class="barra externo"><span>Externo (medido)</span><i id="b-ext"></i><b id="n-ext">0</b></div>
-  <div class="barra evitado"><span>Evitado a Claude</span><i id="b-evit"></i><b id="n-evit">0</b></div>
-  <div class="muted" id="acum"></div>
-  <div class="muted">Claude: caracteres que entraron y salieron de Claude por esta herramienta, divididos entre 3,8. No incluye el historial del chat ni los esquemas de herramientas. Externo: tokens reportados por OpenRouter. Evitado: lo que el modelo externo leyo y escribio y Claude no.</div>
-</div>
+  <div class="cab">
+    <h1>Research Academy</h1>
+    <span class="modelo" id="modelo"></span>
+  </div>
 
-<section id="auth">
-  <p>Conecta tu cuenta gratuita de OpenRouter. La llave se guarda solo en este navegador, nunca pasa por Claude ni por el servidor.</p>
-  <div class="row"><button id="abrir">1. Abrir OpenRouter</button><span class="muted">Si no se abre, copia este enlace:</span></div>
-  <code id="url"></code>
-  <div class="row"><input id="codigo" placeholder="2. Pega aqui el codigo que muestra OpenRouter"><button id="canjear">Guardar</button></div>
-</section>
+  <!-- Conexión con OpenRouter: la llave vive solo en este navegador. -->
+  <section class="caja" id="conectar" hidden aria-labelledby="t-conectar">
+    <h2 id="t-conectar">Conecta tu cuenta de OpenRouter</h2>
+    <p class="nota" style="margin-top:0">La llave se crea aquí, en tu navegador, y se guarda solo en este panel. No pasa por Claude ni por ningún servidor nuestro. Solo se usan modelos gratuitos (:free).</p>
+    <div class="fila"><button class="primario" id="btn-autorizar">Autorizar en OpenRouter</button></div>
+    <div id="paso-codigo" hidden>
+      <p class="nota">Si no se abrió una pestaña, abre este enlace: <a class="enlace" id="enlace-auth" target="_blank" rel="noopener"></a></p>
+      <label class="nota" for="codigo">Pega aquí el código que te muestra OpenRouter:</label>
+      <div class="fila" style="margin-top:4px"><input id="codigo" autocomplete="off" spellcheck="false"><button class="primario" id="btn-canjear">Conectar</button></div>
+    </div>
+    <div class="error" id="error-auth" role="alert" hidden></div>
+  </section>
 
-<section id="ask">
-  <div class="row"><textarea id="otra" rows="2" placeholder="Pregunta de seguimiento, va directo al modelo gratuito, sin gastar Claude"></textarea></div>
-  <div class="row"><button id="enviar">Preguntar</button><button id="copiar">Copiar respuesta</button><button id="aclaude" title="Mete la respuesta al contexto de Claude; gasta tokens de Claude">Pasar a Claude</button><button id="salir" class="muted">Desconectar</button></div>
-</section>
+  <section class="caja" id="consulta" hidden aria-labelledby="t-consulta">
+    <h2 id="t-consulta">Pregunta</h2>
+    <p class="pregunta" id="pregunta"></p>
+    <div class="estado" id="estado" role="status" aria-live="polite" hidden><span class="punto" aria-hidden="true"></span><span id="estado-texto"></span></div>
+    <div class="respuesta" id="respuesta" aria-live="polite"></div>
+    <div class="error" id="error" role="alert" hidden></div>
+    <div id="bloque-fuentes" hidden>
+      <h2 style="margin-top:12px">Fuentes</h2>
+      <ol class="fuentes" id="fuentes"></ol>
+    </div>
+    <div class="uso" id="uso"></div>
+    <div class="fila" id="acciones" hidden>
+      <button id="btn-copiar">Copiar</button>
+      <button id="btn-pasar" title="Envía la respuesta al contexto de Claude: eso sí gasta tokens de Claude">Pasar a Claude</button>
+      <button id="btn-desconectar">Desconectar</button>
+    </div>
+    <p class="nota" id="nota-pasar" hidden></p>
+  </section>
+
+  <section class="caja" id="seguir" hidden aria-labelledby="t-seguir">
+    <h2 id="t-seguir">Seguir preguntando al modelo externo</h2>
+    <p class="nota" style="margin-top:0">Estas preguntas no pasan por Claude.</p>
+    <div class="fila" style="margin-top:6px">
+      <textarea id="seguimiento" placeholder="Escribe otra pregunta…" aria-label="Nueva pregunta para el modelo externo"></textarea>
+    </div>
+    <div class="fila"><button class="primario" id="btn-seguir">Preguntar</button></div>
+  </section>
+
+  <section class="caja" aria-labelledby="t-medidor">
+    <h2 id="t-medidor">Consumo</h2>
+    <div class="medidor-cab"><span>Esta consulta</span><span class="nota" style="margin:0">tokens</span></div>
+    <div class="medidor" id="medidor-consulta"></div>
+    <div class="medidor-cab"><span>Acumulado en este panel</span><button id="btn-reiniciar" style="min-height:0;padding:2px 8px;font-size:11.5px">Reiniciar</button></div>
+    <div class="medidor" id="medidor-total"></div>
+    <p class="nota">Claude es una <b>estimación</b>: caracteres que entran y salen por la herramienta ÷ 3,8, más 45 tokens fijos. Externo lo mide OpenRouter. Evitado es lo que el modelo externo leyó y escribió (incluidos los resultados de búsqueda) y Claude no tuvo que leer.</p>
+  </section>
 
 <script type="module">
-  import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js";
-  const $ = (id) => document.getElementById(id);
-  const KEY = 'ra_openrouter_key', VER = 'ra_pkce_verifier';
-  let ctx = { modo: 'delegar', pregunta: '', consultas: [], modelo: 'nvidia/nemotron-3-ultra-550b-a55b:free', max_palabras: 150 };
-  let ultima = '';
-  const app = new App({ name: 'Research Academy Panel', version: '0.3.0' });
+import { App } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js';
 
-  // Medidor. est(): caracteres/3.8, aproximacion para espanol. Solo Claude.ai sabe el valor real.
-  const est = (t) => Math.ceil(((t ?? '').length) / 3.8);
-  const TOT = 'ra_totales';
-  let medida = { claude: 0, ext: 0, evit: 0 };
-  function medir({ argsTexto, respuestaClaude, usage, externoLeyo, externoEscribio }) {
-    const claude = est(argsTexto) + est(respuestaClaude ?? '') + 45; // 45: linea fija que Claude recibe y repite
-    const ext = (usage?.prompt_tokens ?? 0) + (usage?.completion_tokens ?? 0);
-    const evit = (externoLeyo ?? 0) + (externoEscribio ?? 0);
-    medida = { claude, ext, evit };
-    const max = Math.max(claude, ext, evit, 1);
-    $('b-claude').style.width = (100 * claude / max) + '%'; $('n-claude').textContent = '~' + claude;
-    $('b-ext').style.width = (100 * ext / max) + '%'; $('n-ext').textContent = ext || 'n/d';
-    $('b-evit').style.width = (100 * evit / max) + '%'; $('n-evit').textContent = '~' + evit;
-    let t = { n: 0, claude: 0, ext: 0, evit: 0 }; try { t = JSON.parse(localStorage.getItem(TOT)) ?? t; } catch {}
-    t.n++; t.claude += claude; t.ext += ext; t.evit += evit; localStorage.setItem(TOT, JSON.stringify(t));
-    $('acum').textContent = `Acumulado en este equipo: ${t.n} consultas · Claude ~${t.claude} · externo ${t.ext} · evitado ~${t.evit} tokens.`;
-    $('medidor').classList.remove('hidden');
-  }
+const CLAVE_LLAVE = 'ra-openrouter-key';
+const CLAVE_VERIFIER = 'ra-pkce-verifier';
+const CLAVE_TOTAL = 'ra-medidor-total';
+const OPENROUTER = 'https://openrouter.ai';
+const PARALLEL = 'https://mcp.parallel.ai/mcp';
+const MAX_FUENTES = 5;
+const MAX_EXTRACTO = 900;
 
-  const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  async function pkce() {
-    const v = b64url(crypto.getRandomValues(new Uint8Array(32)));
-    localStorage.setItem(VER, v);
-    const c = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v)));
-    return `https://openrouter.ai/auth?code_challenge=${c}&code_challenge_method=S256&key_label=Research%20Academy%20Panel`;
-  }
-  async function mostrarAuth() {
-    const url = await pkce();
-    $('url').textContent = url;
-    $('abrir').onclick = () => window.open(url, '_blank', 'noopener');
-    $('auth').style.display = 'block'; $('ask').style.display = 'none';
-    $('estado').textContent = 'Falta conectar OpenRouter (una sola vez).';
-  }
-  $('canjear').onclick = async () => {
-    const code = $('codigo').value.trim(); if (!code) return;
-    try {
-      const r = await fetch('https://openrouter.ai/api/v1/auth/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, code_verifier: localStorage.getItem(VER), code_challenge_method: 'S256' }) });
-      const j = await r.json(); if (!j.key) throw new Error(JSON.stringify(j));
-      localStorage.setItem(KEY, j.key); $('codigo').value = ''; $('auth').style.display = 'none';
-      if (ctx.pregunta) preguntar(ctx.pregunta);
-    } catch (e) { $('estado').textContent = 'No se pudo canjear el codigo: ' + e.message; }
-  };
-  $('salir').onclick = () => { localStorage.removeItem(KEY); mostrarAuth(); };
+const $ = (id) => document.getElementById(id);
 
-  // Busqueda web via Parallel MCP, desde el navegador. Sin cuenta; CORS abierto.
-  async function buscar(objetivo, consultas) {
-    const r = await fetch('https://mcp.parallel.ai/mcp', { method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'web_search', arguments: { objective: objetivo, search_queries: consultas } } }) });
-    const raw = await r.text();
-    const line = raw.split('\n').find((l) => l.startsWith('data: ')) ?? raw;
-    const msg = JSON.parse(line.replace(/^data: /, ''));
-    if (msg.error) throw new Error(msg.error.message);
-    const inner = JSON.parse(msg.result.content[0].text);
-    return { crudo: raw.length, fuentes: (inner.results ?? []).slice(0, 5).map((x) => ({ url: x.url, titulo: x.title, extracto: (x.excerpts ?? []).join(' ').replace(/\s+/g, ' ').slice(0, 900) })) };
-  }
-  function pintarFuentes(fs) {
-    $('fuentes').replaceChildren(...fs.map((f) => { const li = document.createElement('li'); const a = document.createElement('a'); a.href = f.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = f.titulo || f.url; li.appendChild(a); return li; }));
-  }
+// localStorage puede no existir o lanzar (vista previa, datos bloqueados): nunca debe romper el panel.
+const guardado = {
+  leer(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  escribir(k, v) { try { localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } },
+  borrar(k) { try { localStorage.removeItem(k); } catch { /* sin almacenamiento */ } },
+};
 
-  async function preguntar(texto, fuentes) {
-    const key = localStorage.getItem(KEY); if (!key) return mostrarAuth();
-    $('ask').style.display = 'block'; $('preg').textContent = texto; $('resp').textContent = ''; $('uso').textContent = '';
-    if (!fuentes) $('fuentes').replaceChildren();
-    $('estado').textContent = `Consultando ${ctx.modelo}…`;
-    const sistema = fuentes
-      ? `Responde en espanol, maximo ${ctx.max_palabras} palabras, usando SOLO las fuentes numeradas. Cita cada dato con [n]. Si las fuentes no bastan o se contradicen, dilo en una frase.`
-      : `Responde en espanol, claro y directo, maximo ${ctx.max_palabras} palabras. Si das cifras, indica si son aproximadas.`;
-    const usuario = fuentes
-      ? `Pregunta: ${texto}\n\nFuentes:\n` + fuentes.map((f, i) => `[${i + 1}] ${f.titulo} (${f.url})\n${f.extracto}`).join('\n\n')
-      : texto;
-    try {
-      const r = await fetch('https://openrouter.ai/api/v1/chat/completions', { method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://github.com/davrv93/claude-research', 'X-Title': 'Research Academy Panel' },
-        body: JSON.stringify({ model: ctx.modelo, max_tokens: Math.round(ctx.max_palabras * 2.5), usage: { include: true },
-          messages: [{ role: 'system', content: sistema }, { role: 'user', content: usuario }] }) });
-      const j = await r.json();
-      if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
-      ultima = j.choices?.[0]?.message?.content ?? '(sin texto)';
-      $('resp').textContent = ultima;
-      const u = j.usage ?? {};
-      $('uso').textContent = `Consumo externo: ${j.model ?? ctx.modelo} · ${u.prompt_tokens ?? '?'} entrada + ${u.completion_tokens ?? '?'} salida tokens · costo ${u.cost != null ? 'US$' + u.cost : 'n/d'} · id ${j.id ?? ''}. Claude: 0 tokens por este texto.`;
-      medir({ argsTexto: JSON.stringify({ pregunta: ctx.pregunta, consultas: ctx.consultas }), respuestaClaude: 'Listo, revisa el panel. Consumo: panel ' + ctx.modelo,
-        usage: u, externoLeyo: est(usuario) + est(sistema) + Math.round((ctx._crudo ?? 0) / 3.8), externoEscribio: u.completion_tokens ?? est(ultima) });
-      $('estado').textContent = fuentes ? `Sintesis con ${fuentes.length} fuentes web (no verificada por Claude). Busqueda de ${ctx._crudo ?? '?'} caracteres que Claude no leyo.` : 'Respuesta del modelo externo (no verificada por Claude).';
-    } catch (e) { $('estado').textContent = 'Error del modelo externo: ' + e.message; if (/401|403|key/i.test(e.message)) mostrarAuth(); }
-  }
+const estado = {
+  peticion: null,      // structuredContent de la herramienta
+  entradaChars: 0,     // caracteres de los argumentos que escribió Claude
+  salidaChars: 0,      // caracteres del resultado que leyó Claude
+  mensajes: [],        // historial con el modelo externo, para los seguimientos
+  fuentes: [],
+  ultimaRespuesta: '',
+  consulta: { claude: 0, externo: 0, evitado: 0, costo: 0 },
+  enCurso: false,
+};
 
-  $('enviar').onclick = () => { const t = $('otra').value.trim(); if (t) { $('otra').value = ''; preguntar(t); } };
-  $('copiar').onclick = () => navigator.clipboard?.writeText(ultima);
-  $('aclaude').onclick = async () => {
-    if (!ultima) return;
-    if (typeof app.updateModelContext === 'function') {
-      await app.updateModelContext({ content: [{ type: 'text', text: `Respuesta externa (${ctx.modelo}) pedida por el alumno:\n${ultima}` }] });
-      $('estado').textContent = 'Pasado al contexto de Claude. Esto si gasta tokens de Claude.';
-    } else { $('estado').textContent = 'Este cliente no permite pasar texto a Claude; usa Copiar.'; }
-  };
+// ---------- Interfaz ----------
+function mostrarEstado(texto) {
+  $('estado').hidden = !texto;
+  $('estado-texto').textContent = texto || '';
+}
+function mostrarError(id, texto) {
+  $(id).hidden = !texto;
+  $(id).textContent = texto || '';
+}
+const escapar = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  app.ontoolinput = ({ arguments: a }) => { if (a) ctx = { ...ctx, ...a }; };
-  async function investigar() {
-    $('estado').textContent = 'Buscando en la web…'; $('preg').textContent = ctx.pregunta; $('resp').textContent = ''; $('fuentes').replaceChildren();
-    try {
-      const consultas = (ctx.consultas && ctx.consultas.length) ? ctx.consultas : [ctx.pregunta.split(/\s+/).slice(0, 6).join(' ')];
-      const { crudo, fuentes } = await buscar(ctx.pregunta, consultas);
-      ctx._crudo = crudo; pintarFuentes(fuentes);
-      if (!fuentes.length) { $('estado').textContent = 'La busqueda no devolvio resultados.'; return; }
-      await preguntar(ctx.pregunta, fuentes);
-    } catch (e) { $('estado').textContent = 'Error en la busqueda web: ' + e.message; }
+// Markdown mínimo y seguro: escapa todo, luego negritas, código, citas [n] y párrafos.
+function pintarRespuesta(texto) {
+  const html = escapar(texto)
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[(\d{1,2})\]/g, (m, n) => (estado.fuentes[n - 1] ? `<a class="cita" href="${escapar(estado.fuentes[n - 1].url)}" target="_blank" rel="noopener">[${n}]</a>` : m))
+    .split(/\n{2,}/)
+    .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+    .join('');
+  $('respuesta').innerHTML = html;
+}
+
+function pintarFuentes() {
+  $('bloque-fuentes').hidden = estado.fuentes.length === 0;
+  $('fuentes').innerHTML = estado.fuentes
+    .map((f) => `<li><a href="${escapar(f.url)}" target="_blank" rel="noopener">${escapar(f.title || f.url)}</a></li>`)
+    .join('');
+}
+
+const fmt = (n) => Math.round(n).toLocaleString('es-PE');
+
+function pintarMedidor(id, m) {
+  const max = Math.max(m.claude, m.externo, m.evitado, 1);
+  const fila = (nombre, valor, color, extra = '') =>
+    `<span>${nombre}</span><span class="barra" role="img" aria-label="${nombre}: ${fmt(valor)} tokens"><i style="width:${(valor / max) * 100}%;background:var(${color})"></i></span><span class="cifra">${fmt(valor)}${extra}</span>`;
+  $(id).innerHTML =
+    fila('Claude ≈', m.claude, '--claude') +
+    fila('Externo', m.externo, '--externo', m.costo ? ` · $${m.costo.toFixed(4)}` : ' · $0') +
+    fila('Evitado', m.evitado, '--evitado');
+}
+
+function leerTotal() {
+  try { return { claude: 0, externo: 0, evitado: 0, costo: 0, ...JSON.parse(guardado.leer(CLAVE_TOTAL) || '{}') }; } catch { return { claude: 0, externo: 0, evitado: 0, costo: 0 }; }
+}
+function sumar(delta) {
+  const total = leerTotal();
+  for (const k of Object.keys(delta)) {
+    estado.consulta[k] += delta[k];
+    total[k] += delta[k];
   }
-  app.ontoolresult = ({ structuredContent: sc }) => {
-    if (sc) ctx = { ...ctx, ...sc };
-    if (!ctx.pregunta) return;
-    if (ctx.modo === 'investigar') investigar(); else preguntar(ctx.pregunta);
-  };
+  guardado.escribir(CLAVE_TOTAL, JSON.stringify(total));
+  pintarMedidor('medidor-consulta', estado.consulta);
+  pintarMedidor('medidor-total', total);
+}
+
+// ---------- OAuth PKCE sin callback ----------
+const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function autorizar() {
+  mostrarError('error-auth', '');
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  guardado.escribir(CLAVE_VERIFIER, verifier);
+  estado.verifier = verifier;
+  const url = `${OPENROUTER}/auth?code_challenge=${challenge}&code_challenge_method=S256&key_label=Research%20Academy%20Panel`;
+  $('enlace-auth').href = url;
+  $('enlace-auth').textContent = url;
+  $('paso-codigo').hidden = false;
+  let abierto = false;
+  try {
+    if (app.openLink) abierto = !(await app.openLink({ url })).isError;
+  } catch { /* el host no lo soporta */ }
+  if (!abierto) {
+    try { window.open(url, '_blank', 'noopener'); } catch { /* el iframe lo bloquea: queda el enlace */ }
+  }
+  $('codigo').focus();
+}
+
+async function canjear() {
+  const code = $('codigo').value.trim();
+  const verifier = estado.verifier || guardado.leer(CLAVE_VERIFIER);
+  if (!code) return mostrarError('error-auth', 'Pega el código que te mostró OpenRouter.');
+  if (!verifier) return mostrarError('error-auth', 'Primero pulsa «Autorizar en OpenRouter».');
+  $('btn-canjear').disabled = true;
+  try {
+    const r = await fetch(`${OPENROUTER}/api/v1/auth/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: 'S256' }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.key) throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`);
+    guardado.escribir(CLAVE_LLAVE, j.key);
+    estado.llave = j.key;
+    guardado.borrar(CLAVE_VERIFIER);
+    $('codigo').value = '';
+    $('conectar').hidden = true;
+    if (estado.peticion && !estado.ultimaRespuesta) await ejecutar();
+  } catch (e) {
+    mostrarError('error-auth', 'No se pudo conectar: ' + e.message);
+  } finally {
+    $('btn-canjear').disabled = false;
+  }
+}
+
+function llave() {
+  return estado.llave || (estado.llave = guardado.leer(CLAVE_LLAVE));
+}
+
+// ---------- Búsqueda en Parallel ----------
+async function buscar(objetivo, consultas) {
+  const r = await fetch(PARALLEL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'web_search', arguments: { objective: objetivo, search_queries: consultas } } }),
+  });
+  if (!r.ok) throw new Error(`la búsqueda respondió ${r.status}`);
+  const crudo = await r.text();
+  const linea = crudo.split('\n').find((l) => l.startsWith('data: '));
+  const rpc = JSON.parse(linea ? linea.slice(6) : crudo);
+  if (rpc.error) throw new Error(rpc.error.message || 'error en la búsqueda');
+  const texto = rpc.result?.content?.[0]?.text;
+  if (!texto) throw new Error('la búsqueda no devolvió resultados');
+  const datos = JSON.parse(texto);
+  const fuentes = (datos.results || []).slice(0, MAX_FUENTES).map((x) => ({
+    url: x.url,
+    title: x.title,
+    extracto: (x.excerpts || []).join(' … ').slice(0, MAX_EXTRACTO),
+  }));
+  return { fuentes, charsRecibidos: crudo.length };
+}
+
+// ---------- Modelo externo ----------
+function sistema(maxPalabras, conFuentes) {
+  let s = `Responde siempre en español, claro y directo, en ${maxPalabras} palabras como máximo.`;
+  if (conFuentes)
+    s +=
+      ' Usa SOLO las fuentes numeradas que te da el usuario y cita cada afirmación con [n], donde n es el número de la fuente. ' +
+      'No inventes datos ni fuentes. Si las fuentes no bastan para responder, dilo explícitamente.';
+  return s;
+}
+
+// Muchos modelos gratuitos razonan por omisión y el razonamiento se comería max_tokens: se apaga.
+// Si el modelo exige razonar (400), se reintenta una vez con razonamiento oculto y margen de tokens.
+async function llamarChat(mensajes, conRazonamiento) {
+  const p = estado.peticion;
+  const max = Math.round(p.max_palabras * 2.5);
+  const cuerpo = { model: p.modelo, messages: mensajes, usage: { include: true } };
+  if (conRazonamiento) Object.assign(cuerpo, { max_tokens: max + 2048, reasoning: { exclude: true } });
+  else Object.assign(cuerpo, { max_tokens: max, reasoning: { enabled: false } });
+  const r = await fetch(`${OPENROUTER}/api/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave()}`, 'X-Title': 'Research Academy Panel' },
+    body: JSON.stringify(cuerpo),
+  });
+  return { r, j: await r.json().catch(() => ({})) };
+}
+
+async function preguntarModelo(mensajes) {
+  let { r, j } = await llamarChat(mensajes, false);
+  if (r.status === 400) ({ r, j } = await llamarChat(mensajes, true));
+  if (r.status === 401) {
+    guardado.borrar(CLAVE_LLAVE);
+    estado.llave = null;
+    $('conectar').hidden = false;
+    throw new Error('OpenRouter rechazó la llave. Vuelve a conectar tu cuenta.');
+  }
+  if (!r.ok || j.error) throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`);
+  const m = j.choices?.[0]?.message || {};
+  const texto = (m.content || '').trim();
+  return { texto, usage: j.usage || {}, id: j.id, finish: j.choices?.[0]?.finish_reason };
+}
+
+function pintarUso(u, id) {
+  const partes = [`entrada ${fmt(u.prompt_tokens || 0)}`, `salida ${fmt(u.completion_tokens || 0)}`, `costo $${(u.cost || 0).toFixed(4)}`];
+  if (id) partes.push(`id ${id}`);
+  $('uso').textContent = partes.join(' · ');
+}
+
+async function ejecutar() {
+  const p = estado.peticion;
+  if (!p || estado.enCurso) return;
+  if (!llave()) {
+    $('conectar').hidden = false;
+    mostrarEstado('');
+    return;
+  }
+  estado.enCurso = true;
+  mostrarError('error', '');
+  try {
+    let usuario = p.pregunta;
+    let evitadoBusqueda = 0;
+    if (p.modo === 'investigar') {
+      mostrarEstado('Buscando fuentes en la web…');
+      const { fuentes, charsRecibidos } = await buscar(p.pregunta, p.consultas || [p.pregunta]);
+      estado.fuentes = fuentes;
+      pintarFuentes();
+      // Lo que llegó de la búsqueda y no se mandó al modelo también es lectura que Claude se ahorró.
+      const usados = fuentes.reduce((n, f) => n + f.extracto.length + (f.title || '').length + f.url.length, 0);
+      evitadoBusqueda = Math.max(0, charsRecibidos - usados) / 3.8;
+      if (!fuentes.length) throw new Error('la búsqueda no encontró fuentes; prueba otras consultas');
+      usuario =
+        `Pregunta: ${p.pregunta}\n\nFuentes:\n` +
+        fuentes.map((f, i) => `[${i + 1}] ${f.title || ''} — ${f.url}\n${f.extracto}`).join('\n\n');
+    }
+    mostrarEstado(`Preguntando a ${p.modelo}…`);
+    estado.mensajes = [{ role: 'system', content: sistema(p.max_palabras, p.modo === 'investigar') }, { role: 'user', content: usuario }];
+    const r = await preguntarModelo(estado.mensajes);
+    terminarRespuesta(r, evitadoBusqueda);
+  } catch (e) {
+    mostrarError('error', 'No se pudo completar: ' + e.message);
+  } finally {
+    estado.enCurso = false;
+    mostrarEstado('');
+  }
+}
+
+function terminarRespuesta(r, evitadoExtra = 0) {
+  const texto = r.texto || (r.finish === 'length' ? '(El modelo agotó el límite de tokens antes de responder. Sube max_palabras o usa otro modelo.)' : '(El modelo no devolvió texto.)');
+  estado.mensajes.push({ role: 'assistant', content: r.texto });
+  estado.ultimaRespuesta = r.texto;
+  pintarRespuesta(texto);
+  pintarUso(r.usage, r.id);
+  $('acciones').hidden = false;
+  $('seguir').hidden = false;
+  const externo = (r.usage.prompt_tokens || 0) + (r.usage.completion_tokens || 0);
+  sumar({ externo, evitado: externo + evitadoExtra, costo: r.usage.cost || 0 });
+}
+
+async function seguir() {
+  const q = $('seguimiento').value.trim();
+  if (!q || estado.enCurso || !estado.peticion) return;
+  if (!llave()) return void ($('conectar').hidden = false);
+  estado.enCurso = true;
+  $('btn-seguir').disabled = true;
+  mostrarError('error', '');
+  mostrarEstado(`Preguntando a ${estado.peticion.modelo}…`);
+  $('pregunta').textContent = q;
+  try {
+    estado.mensajes.push({ role: 'user', content: q });
+    const r = await preguntarModelo(estado.mensajes);
+    $('seguimiento').value = '';
+    terminarRespuesta(r);
+  } catch (e) {
+    estado.mensajes.pop();
+    mostrarError('error', 'No se pudo completar: ' + e.message);
+  } finally {
+    estado.enCurso = false;
+    $('btn-seguir').disabled = false;
+    mostrarEstado('');
+  }
+}
+
+// ---------- Conexión con el host ----------
+const app = new App({ name: 'research-academy-panel', version: '0.1.0' });
+
+function aplicarTema(ctx) {
+  const t = ctx?.theme;
+  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+}
+
+// Ambos manejadores van antes de connect(): el host puede mandar la entrada apenas conecta.
+app.ontoolinput = (params) => {
+  estado.entradaChars = JSON.stringify(params?.arguments || {}).length;
+  const a = params?.arguments || {};
+  if (a.pregunta) {
+    $('consulta').hidden = false;
+    $('pregunta').textContent = a.pregunta;
+    $('modelo').textContent = a.modelo || '';
+    mostrarEstado('Esperando a Claude…');
+  }
+};
+
+app.ontoolresult = async (result) => {
+  const sc = result?.structuredContent;
+  estado.salidaChars = (result?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
+  // Lo que pagó Claude por esta llamada: argumentos + la línea de respuesta, más un fijo por la llamada.
+  estado.consulta = { claude: 0, externo: 0, evitado: 0, costo: 0 };
+  sumar({ claude: (estado.entradaChars + estado.salidaChars) / 3.8 + 45 });
+  if (result?.isError || !sc) {
+    $('consulta').hidden = false;
+    mostrarEstado('');
+    mostrarError('error', (result?.content || []).map((c) => c.text).join(' ') || 'La herramienta devolvió un error.');
+    return;
+  }
+  estado.peticion = sc;
+  estado.fuentes = [];
+  estado.ultimaRespuesta = '';
+  pintarFuentes();
+  $('respuesta').innerHTML = '';
+  $('uso').textContent = '';
+  $('consulta').hidden = false;
+  $('pregunta').textContent = sc.pregunta;
+  $('modelo').textContent = sc.modelo;
+  await ejecutar();
+};
+
+app.onhostcontextchanged = (ctx) => aplicarTema(ctx);
+
+$('btn-autorizar').addEventListener('click', autorizar);
+$('btn-canjear').addEventListener('click', canjear);
+$('codigo').addEventListener('keydown', (e) => e.key === 'Enter' && canjear());
+$('btn-seguir').addEventListener('click', seguir);
+$('seguimiento').addEventListener('keydown', (e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && seguir());
+$('btn-copiar').addEventListener('click', async () => {
+  const fuentes = estado.fuentes.map((f, i) => `[${i + 1}] ${f.url}`).join('\n');
+  const texto = estado.ultimaRespuesta + (fuentes ? `\n\nFuentes:\n${fuentes}` : '');
+  try {
+    await navigator.clipboard.writeText(texto);
+    $('btn-copiar').textContent = 'Copiado';
+  } catch {
+    $('btn-copiar').textContent = 'No se pudo copiar';
+  }
+  setTimeout(() => ($('btn-copiar').textContent = 'Copiar'), 1500);
+});
+$('btn-pasar').addEventListener('click', async () => {
+  const nota = $('nota-pasar');
+  nota.hidden = false;
+  if (!app.updateModelContext) {
+    nota.textContent = 'Este host no permite pasar texto a Claude desde el panel. Usa «Copiar».';
+    return;
+  }
+  const fuentes = estado.fuentes.map((f, i) => `[${i + 1}] ${f.title || ''} ${f.url}`).join('\n');
+  const texto = `Respuesta de ${estado.peticion?.modelo} mostrada en el panel:\n\n${estado.ultimaRespuesta}${fuentes ? `\n\nFuentes:\n${fuentes}` : ''}`;
+  try {
+    await app.updateModelContext({ content: [{ type: 'text', text: texto }] });
+    sumar({ claude: texto.length / 3.8 });
+    nota.textContent = 'Enviado a Claude. Ojo: esto sí gasta tokens de Claude.';
+  } catch (e) {
+    nota.textContent = 'No se pudo pasar a Claude: ' + e.message;
+  }
+});
+$('btn-desconectar').addEventListener('click', () => {
+  guardado.borrar(CLAVE_LLAVE);
+  estado.llave = null;
+  $('conectar').hidden = false;
+  $('acciones').hidden = true;
+  $('seguir').hidden = true;
+});
+$('btn-reiniciar').addEventListener('click', () => {
+  guardado.borrar(CLAVE_TOTAL);
+  pintarMedidor('medidor-total', leerTotal());
+});
+
+pintarMedidor('medidor-consulta', estado.consulta);
+pintarMedidor('medidor-total', leerTotal());
+if (!llave()) $('conectar').hidden = false;
+
+try {
   await app.connect();
+  aplicarTema(app.getHostContext?.());
+} catch (e) {
+  mostrarError('error', 'No se pudo conectar con el host: ' + e.message);
+  $('consulta').hidden = false;
+}
 </script>
-</body></html>
+</body>
+</html>

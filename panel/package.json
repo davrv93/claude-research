@@ -1,13 +1,18 @@
 {
   "name": "research-academy-panel",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.4.0",
+  "description": "MCP App: Claude delega preguntas e investigaciones a un modelo gratuito de OpenRouter y la respuesta se muestra en un panel, sin entrar al contexto de Claude.",
   "type": "module",
-  "description": "MCP App: delega una pregunta a un modelo gratuito de OpenRouter y muestra la respuesta en un panel dentro de Claude, sin pasar por el contexto de Claude.",
-  "scripts": { "start": "node server.mjs" },
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.mjs",
+    "stdio": "node stdio.mjs",
+    "verificar": "node verificar.mjs"
+  },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.7.5",
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "zod": "^4.0.0"
+    "@modelcontextprotocol/sdk": "^1.30",
+    "zod": "^4"
   }
 }

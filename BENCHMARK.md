@@ -37,9 +37,12 @@ Criterios: ruta esperada, espanol, maximo 180 palabras antes del pie (Artifacts 
 | Modelo | Skill | OK 4 criterios | Ruta correcta | Pie presente | Palabras promedio |
 |---|---|---:|---:|---:|---:|
 | Sonnet | 0.4.0 | 48/50 | 49/50 | 50/50 | 59 (*) |
+| Sonnet | 0.5.0 (panel) | 46/50 | 47/50 | 50/50 | 33 |
 | Haiku | 0.4.1 | 38/50 | 48/50 (**) | 45/50 | 82 |
 
 (*) La corrida de Sonnet se hizo antes de desactivar un plugin de estilo del equipo que acorta respuestas; la ruta no se ve afectada, el promedio de palabras si puede estar deflactado.
+Skill 0.5.0 enruta a las herramientas del panel (`delegar`, `investigar`) en lugar de los conectores clasicos; los 4 casos no OK son #30 y #48 (aceptados), #38 (pidio los datos antes de crear el Artifact) y #43 (explico fotosintesis para ninos directo en vez de delegar). El promedio de palabras baja a 33 porque tras delegar Claude solo escribe una frase.
+
 (**) Haiku devolvio texto plano en vez de JSON en 7 casos; se clasifico la ruta leyendo la respuesta. Todas correctas.
 
 Haiku, fallos reales: omite el pie `Consumo` en 5 de 50 respuestas; en 1 caso (#3) afirmo que Parallel no estaba conectado y respondio de memoria. Sonnet no omite el pie. Para el taller, recomendar Sonnet.

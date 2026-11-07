@@ -2,12 +2,20 @@
 
 ## Camino principal: extension .mcpb para Claude Desktop (sin servidor)
 
-Hecho: `panel/stdio.mjs`, `panel/manifest.json`, paquete en `dist/research-academy-panel-0.3.0.mcpb`. Verificado por stdio: initialize, tools/list (delegar, investigar), resources/read con csp. No se pudo instalar aqui: esta maquina no tiene Claude Desktop.
+Hecho: `panel/stdio.mjs`, `panel/manifest.json`, paquete en `dist/research-academy-panel-0.4.0.mcpb` (implementacion unificada con la desplegada). Verificado por stdio: initialize, tools/list (delegar, investigar), resources/read con csp. No se pudo instalar aqui: esta maquina no tiene Claude Desktop.
 
 Pendiente, en una maquina con Claude Desktop:
 1. Doble clic en el `.mcpb`, instalar, permitir el panel.
 2. Probar `delegar` e `investigar`; revisar flujo del codigo de OpenRouter y el aviso de terminos de Parallel.
 3. Publicar el `.mcpb` como Release de GitHub (`gh auth login` primero; el token actual es invalido).
+
+## Conector web desplegado (2026-11-07)
+
+URL: `https://jmd-learn.online/research-academy/mcp`. Verificado desde terminal: `tools/list` con `delegar` e `investigar`, recurso `text/html;profile=mcp-app` con csp, `ui.domain` correcto (`62ebd1bc4df726689d7c82243a526f8b.claudemcpcontent.com`), rechazo de modelos de pago, `GET` devuelve 405. Ya esta en `plugins/research-academy/.mcp.json`; la Skill 0.5.0 enruta a `delegar` e `investigar`.
+
+Fuente unica desde 2026-11-07: `panel/` del repo es la misma implementacion que corre en el servidor (version 0.4.0). `~/Documents/research-academy-panel` es un enlace simbolico a `~/Documents/claude-research/panel`. Para publicar en todos lados, seguir "Publicar una version nueva" en `panel/README.md`.
+
+Pendiente: probar en claude.ai web (render, codigo de OpenRouter, terminos de Parallel, Configuracion > Uso).
 
 ## Camino de respaldo para claude.ai web (necesita host HTTPS)
 

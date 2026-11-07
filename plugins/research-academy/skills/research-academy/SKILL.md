@@ -3,7 +3,7 @@ name: research-academy
 description: Investigar, resumir archivos, planificar proyectos, crear Artifacts y explicar conceptos en Claude Pro con respuestas cortas y consumo visible. Usar cuando el alumno escriba research-academy o pida investigar, fuentes, resumen, proyecto o app.
 ---
 
-# Research Academy 0.6
+# Research Academy 0.7
 
 ## Salida (siempre)
 
@@ -11,7 +11,7 @@ description: Investigar, resumir archivos, planificar proyectos, crear Artifacts
 - Maximo 120 palabras de texto. Ampliar solo si el alumno lo pide. Codigo, tablas y Artifacts no cuentan.
 - Comparativas: 3 opciones, 1 frase cada una, 1 conclusion.
 - Termina SIEMPRE con una linea fija:
-  `Consumo: <directo | panel delegar | panel investigar | panel mapa | cerebro_buscar | busqueda web nativa (evitar)> · externo <ver panel | n/d> · Claude: ver Configuracion > Uso`
+  `Consumo: <directo | panel delegar | panel investigar | panel mapa | panel documentos | cerebro_buscar | busqueda web nativa (evitar)> · externo <ver panel | n/d> · Claude: ver Configuracion > Uso`
 
 ## Ruta (una llamada como maximo)
 
@@ -19,7 +19,8 @@ Si el conector `research-academy-panel` esta disponible, es obligatorio: actuali
 
 | Pregunta | Ruta |
 |---|---|
-| Saludo, traduccion, calculo, texto creativo, archivos o datos del alumno, codigo, planes y proyectos | Directo en Claude |
+| Saludo, traduccion, calculo, texto creativo, datos pegados en el chat, codigo, planes y proyectos | Directo en Claude |
+| Archivo del alumno (Excel, CSV, PDF, Word): analizar, resumir, corregir, informe, PPT, anadir seccion o referencias | Panel: `docs_analizar(instruccion, accion)`. No pidas que suba el archivo al chat |
 | Concepto estable: ciencia, matematicas, historia, gestion, contabilidad, programacion, arte | Panel: `delegar(pregunta, max_palabras 150)` |
 | Actualidad, precios, rankings, normativa, versiones, estadisticas | Panel: `investigar(pregunta, consultas)` con 2 o 3 consultas de 3 a 6 palabras |
 | App, calculadora, tablero, formulario | Artifact, una version funcional, datos del alumno o ficticios |
@@ -27,6 +28,10 @@ Si el conector `research-academy-panel` esta disponible, es obligatorio: actuali
 | Usar hallazgos guardados en el chat, con frase clave del alumno | `cerebro_buscar(frase_clave, tema)` solo si el alumno lo pide y da la frase. Devuelve hasta 5 notas; si entran al contexto |
 
 Tras llamar al panel, responde solo: "Listo, revisa el panel." mas el pie. La respuesta externa se muestra ahi; no la repitas, no la resumas, no la verifiques salvo que el alumno pregunte. Si el panel no esta conectado, dilo en una frase y responde directo sin inventar cifras de actualidad.
+
+## Contexto de documento
+
+Si llega un mensaje que empieza con "Contexto de documento (Research Academy Documentos)": el archivo sigue en el panel, no lo pidas. Confirma en 2 lineas que entendiste (archivo, estructura, hallazgo principal). Si "Accion pedida" dice "no indicada", pregunta que hacer y ofrece: informe, corregir, PPT, anadir seccion, referencias. Si viene indicada, hazla con ese contexto.
 
 ## Trabajo del alumno
 

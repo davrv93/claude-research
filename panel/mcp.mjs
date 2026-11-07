@@ -12,15 +12,16 @@ import { buscarNotas, idDeFrase, leerCerebro, resumirNotas } from './cerebro.mjs
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 export const PANEL_URI = 'ui://research-academy/panel';
+export const DOCS_URI = 'ui://research-academy/docs';
 export const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
-export const VERSION = '0.6.1';
+export const VERSION = '0.7.0';
 
 // Metadatos de la interfaz: a qué dominios puede conectarse el panel y de dónde carga módulos.
 export function metaUi() {
   const ui = {
     csp: {
       connectDomains: ['https://openrouter.ai', 'https://mcp.parallel.ai', ...(cerebroUrl() ? [new URL(cerebroUrl()).origin] : [])],
-      resourceDomains: ['https://unpkg.com'],
+      resourceDomains: ['https://unpkg.com', 'https://cdnjs.cloudflare.com'],
     },
     permissions: { clipboardWrite: {} },
     prefersBorder: true,
@@ -154,6 +155,42 @@ export function buildServer() {
         structuredContent: { total: cerebro.notas.length, devueltas: notas.length },
       };
     },
+  );
+
+  registerAppTool(
+    server,
+    'docs_analizar',
+    {
+      title: 'Analizar un archivo del alumno (Excel, CSV, PDF, Word)',
+      description:
+        'Abre el panel Documentos: el alumno suelta ahí su archivo (Excel, CSV, PDF o Word). El panel lo lee en el navegador, calcula estructura, estadísticas y fórmulas, ' +
+        'y un modelo gratuito lo analiza. El archivo NUNCA pasa por Claude. Úsalo cuando el alumno quiera analizar, resumir, corregir, hacer un informe o un PPT ' +
+        'a partir de un archivo, o añadir contenido a un Word. Tras llamar, responde solo: "Listo, suelta el archivo en el panel." más el pie Consumo. ' +
+        'Cuando el alumno envíe el contexto desde el panel, confirma en 2 líneas lo entendido y pregunta la acción si no vino indicada.',
+      inputSchema: {
+        instruccion: z.string().default('').describe('Lo que el alumno quiere hacer con el archivo, en sus palabras.'),
+        accion: z.enum(['', 'resumen', 'informe', 'ppt', 'corregir', 'anadir', 'referencias']).default('').describe('Acción pedida si está clara; vacío si solo quiere analizar o no lo dijo.'),
+        modelo,
+      },
+      _meta: { ui: { resourceUri: DOCS_URI } },
+    },
+    async ({ instruccion, accion, modelo }) => {
+      if (!esGratis(modelo)) return rechazo(modelo);
+      return {
+        content: [{ type: 'text', text: `Panel Documentos abierto con ${modelo}. El alumno suelta el archivo ahí y luego lo envía al chat si quiere. Responde solo: "Listo, suelta el archivo en el panel." más el pie Consumo.` }],
+        structuredContent: { modo: 'docs', instruccion, accion, modelo },
+      };
+    },
+  );
+
+  registerAppResource(
+    server,
+    'Panel Documentos de Research Academy',
+    DOCS_URI,
+    { description: 'Panel donde el alumno suelta un archivo y lo analiza sin pasar por Claude.', mimeType: RESOURCE_MIME_TYPE, _meta: { ui: metaUi() } },
+    async () => ({
+      contents: [{ uri: DOCS_URI, mimeType: RESOURCE_MIME_TYPE, text: (await readFile(join(AQUI, 'docs.html'), 'utf8')).replace('__CEREBRO_URL__', cerebroUrl()), _meta: { ui: metaUi() } }],
+    }),
   );
 
   registerAppResource(

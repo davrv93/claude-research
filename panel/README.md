@@ -76,3 +76,13 @@ Cada respuesta se guarda como nota: pregunta, respuesta, fuentes, fecha, y tema,
 - Exportar `cerebro.md` (para un Proyecto de Claude) o `cerebro.json` (para importar en otro navegador). "Pasar índice a Claude" envía solo temas y hallazgos al chat.
 - Variables: `CEREBRO_URL` (base del almacén; por defecto `SERVER_URL` sin `/mcp`), `DATA_DIR`.
 - Respaldo en el EC2: `sudo docker run --rm -v research-academy-datos:/d -v ~/respaldos:/b alpine tar czf /b/cerebros-$(date +%F).tgz -C /d .`
+
+## Documentos (0.7.0)
+
+Segunda interfaz, `ui://research-academy/docs` (`docs.html`), herramienta `docs_analizar(instruccion, accion)`. El alumno suelta un Excel, CSV, PDF o Word en el panel; el archivo no pasa por Claude.
+
+- Excel/CSV: SheetJS lee hojas, columnas, tipos, vacíos, estadísticas por columna, fórmulas por celda (`cellFormula`) y celdas con error. Las filas con fórmulas (totales) se excluyen de las cifras. Muestra de hasta 300 filas por hoja al modelo.
+- PDF: pdf.js, texto por página; avisa si parece escaneado (sin OCR). Word: mammoth, texto y títulos. Textos mayores a 60 000 caracteres se resumen por partes.
+- El modelo `:free` entrega 3 a 6 hallazgos con cifras exactas y una línea `TEMA:`. Permiso explícito (recordado) antes de enviar contenido.
+- "Enviar a Claude" manda un contexto compacto (~400 tokens): archivo, estructura, hallazgos, acción pedida e instrucción, más la indicación de confirmar y preguntar la acción si falta. Se guarda una nota tipo `documento` en el cerebro.
+- Pendiente (siguientes pasos): generar PPT, añadir sección o referencias a un Word, Excel corregido.

@@ -31,6 +31,10 @@ Pendiente: probar en claude.ai web (render, codigo de OpenRouter, terminos de Pa
 
 Hecho: almacén en el servidor por frase clave, guardado automático con tema y hallazgos, lista con buscar/borrar/exportar/importar, mapa mental SVG con plegado, herramientas `mapa` y `cerebro_buscar`, Skill 0.6.0. Probado: endpoints REST, herramientas por MCP, arranque del panel con DOM simulado. Falta: redesplegar (`desplegar.sh` ya monta el volumen), probar en claude.ai el guardado tras una investigacion, la sincronizacion web/Desktop y el mapa; verificar que `sendMessage` funcione para "Pasar a Claude".
 
+## Documentos (0.7.0, pendiente de probar en claude.ai)
+
+Hecho: panel Documentos con descubrimiento de Excel/CSV (estadisticas, formulas, errores), PDF y Word, analisis con el modelo :free, permiso explicito, nota en el cerebro, "Enviar a Claude" con contexto compacto y regla en la Skill para confirmar y preguntar la accion. Probado: descubrimiento con SheetJS en Node, arranque con DOM simulado, herramienta y recurso por MCP. Falta probar en claude.ai: soltar archivo en el iframe, carga de SheetJS/pdf.js/mammoth bajo el CSP, pdf.js sin worker, envio al chat. Siguientes: PPT (PptxGenJS + enlace de descarga desde el servidor), anadir seccion/referencias a Word (JSZip sobre document.xml), Excel corregido (SheetJS).
+
 ## Hallazgos que cambian las prioridades
 
 Medido el 2026-11-07 contra los servidores reales:

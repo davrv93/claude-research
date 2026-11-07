@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Academy · Documentos</title>
+<style>
+  :root {
+    --bg: #ffffff; --s1: #f6f5fb; --s2: #eceaf6; --fg: #17161f; --muted: #5d5a6b; --line: rgba(60, 52, 140, .16);
+    --accent: #1f7a4d; --on-accent: #fff; --accent-bg: rgba(31, 122, 77, .1);
+    --claude: #c2622d; --externo: #5a49d6; --evitado: #1f7a4d; --bad: #b42318; --bad-bg: rgba(180, 35, 24, .08);
+    --r: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17161f; --s1: #201f2c; --s2: #2a2839; --fg: #ecebf5; --muted: #b0adc2; --line: rgba(190, 185, 255, .16);
+      --accent: #5fd398; --on-accent: #0f2a1c; --accent-bg: rgba(95, 211, 152, .14);
+      --claude: #f0a070; --externo: #a99cff; --evitado: #5fd398; --bad: #ff8a80; --bad-bg: rgba(255, 138, 128, .1);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17161f; --s1: #201f2c; --s2: #2a2839; --fg: #ecebf5; --muted: #b0adc2; --line: rgba(190, 185, 255, .16);
+    --accent: #5fd398; --on-accent: #0f2a1c; --accent-bg: rgba(95, 211, 152, .14);
+    --claude: #f0a070; --externo: #a99cff; --evitado: #5fd398; --bad: #ff8a80; --bad-bg: rgba(255, 138, 128, .1);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 14px 16px 16px; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { margin: 0; font-size: 15px; font-weight: 700; }
+  h2 { margin: 0 0 6px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  h3 { margin: 10px 0 4px; font-size: 13px; }
+  .cab { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .modelo { font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .caja { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--s1); }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 12px; min-height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+  button:hover { background: var(--s2); } button.primario { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  input, textarea, select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+  textarea { width: 100%; min-height: 56px; resize: vertical; }
+  .nota { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+  .zona { margin-top: 10px; padding: 22px 12px; border: 2px dashed var(--line); border-radius: var(--r); text-align: center; color: var(--muted); cursor: pointer; background: var(--bg); }
+  .zona.sobre { border-color: var(--accent); background: var(--accent-bg); color: var(--fg); }
+  .zona b { color: var(--fg); }
+  .estado { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 13px; }
+  .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: latido 1.2s ease-in-out infinite; }
+  @keyframes latido { 50% { opacity: .25; } }
+  .error { margin-top: 10px; padding: 10px 12px; border-radius: var(--r); background: var(--bad-bg); color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  th { color: var(--muted); font-weight: 650; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
+  td.n { text-align: right; font-family: var(--mono); white-space: nowrap; }
+  .tabla { overflow: auto; max-height: 280px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--s2); }
+  .chip.mal { background: var(--bad-bg); color: var(--bad); }
+  .respuesta { margin-top: 10px; overflow-wrap: anywhere; } .respuesta p { margin: 0 0 8px; }
+  .respuesta.flujo::after { content: '▍'; color: var(--accent); animation: latido .8s ease-in-out infinite; }
+  pre.texto { white-space: pre-wrap; font: 12px var(--mono); max-height: 220px; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 6px 0 0; }
+  .uso { margin-top: 8px; font: 12px var(--mono); color: var(--muted); }
+  .medidor { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; gap: 5px 10px; align-items: center; font-size: 12.5px; }
+  .barra { height: 8px; border-radius: 4px; background: var(--s2); overflow: hidden; } .barra i { display: block; height: 100%; border-radius: 4px; min-width: 2px; }
+  .cifra { font: 12px var(--mono); text-align: right; white-space: nowrap; }
+  label.check { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); }
+  .enlace { font: 12px var(--mono); overflow-wrap: anywhere; color: var(--accent); }
+  .sync { font-size: 12px; color: var(--muted); } .sync.ok { color: var(--evitado); } .sync.mal { color: var(--bad); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="cab"><h1>Documentos</h1><span class="modelo" id="modelo"></span></div>
+
+  <section class="caja" id="conectar" hidden>
+    <h2>Conecta tu cuenta de OpenRouter</h2>
+    <p class="nota" style="margin-top:0">La llave se crea en tu navegador y se guarda solo en este panel. Solo modelos gratuitos (:free).</p>
+    <div class="fila"><button class="primario" id="btn-autorizar">Autorizar en OpenRouter</button></div>
+    <div id="paso-codigo" hidden>
+      <p class="nota">Si no se abrió una pestaña, abre este enlace: <a class="enlace" id="enlace-auth" target="_blank" rel="noopener"></a></p>
+      <div class="fila" style="margin-top:4px"><input id="codigo" placeholder="Pega el código de OpenRouter" autocomplete="off" style="flex:1;min-width:200px"><button class="primario" id="btn-canjear">Conectar</button></div>
+    </div>
+    <div class="error" id="error-auth" hidden></div>
+  </section>
+
+  <section class="caja" id="tarea">
+    <h2>Tarea</h2>
+    <p id="instruccion" style="margin:0;font-weight:600">—</p>
+    <div class="fila" style="margin-top:6px">
+      <label class="check">Acción:
+        <select id="accion">
+          <option value="">Solo analizar</option><option value="resumen">Resumen</option><option value="informe">Informe</option><option value="ppt">Presentación PPT</option>
+          <option value="corregir">Corregir</option><option value="anadir">Añadir sección</option><option value="referencias">Añadir referencias</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="permiso" checked> Enviar el contenido del archivo al modelo gratuito (OpenRouter). Evita datos personales sensibles.</label>
+    </div>
+    <div class="zona" id="zona" tabindex="0"><b>Suelta aquí tu archivo</b> o haz clic para elegirlo<br><span>Excel (.xlsx, .xls), CSV, PDF o Word (.docx). No sale hacia Claude.</span></div>
+    <input type="file" id="archivo" hidden accept=".xlsx,.xls,.xlsm,.csv,.tsv,.pdf,.docx">
+    <div class="estado" id="estado" hidden><span class="punto"></span><span id="estado-texto"></span></div>
+    <div class="error" id="error" hidden></div>
+  </section>
+
+  <section class="caja" id="descubrimiento" hidden>
+    <h2>Descubrimiento</h2>
+    <p id="resumen-archivo" style="margin:0"></p>
+    <div class="chips" id="chips"></div>
+    <div id="hojas"></div>
+    <div id="texto-doc" hidden><h3>Texto extraído (inicio)</h3><pre class="texto" id="texto-pre"></pre></div>
+  </section>
+
+  <section class="caja" id="analisis" hidden>
+    <h2>Análisis del modelo gratuito</h2>
+    <div class="respuesta" id="respuesta"></div>
+    <div class="uso" id="uso"></div>
+    <div class="fila">
+      <button class="primario" id="btn-claude" title="Envía al chat un contexto compacto (estructura, cifras, hallazgos); eso sí gasta tokens de Claude">Enviar a Claude</button>
+      <button id="btn-copiar">Copiar contexto</button>
+      <button id="btn-reanalizar">Volver a analizar</button>
+    </div>
+    <p class="nota" id="nota-claude" hidden></p>
+    <p class="sync" id="sync"></p>
+  </section>
+
+  <section class="caja">
+    <h2>Consumo</h2>
+    <div class="medidor" id="medidor-consulta"></div>
+    <p class="nota">Claude es una estimación: lo que entra y sale por la herramienta ÷ 3,8 más 45 tokens, y el contexto compacto si lo envías. Externo lo mide OpenRouter. Evitado: el archivo entero, que Claude no leyó.</p>
+  </section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script id="descubrir">
+// Descubrimiento determinista de un libro Excel/CSV ya leído con SheetJS. Sin modelo. Reutilizable en Node para pruebas.
+window.RA_descubrir = (function () {
+  const esNum = (v) => typeof v === 'number' && Number.isFinite(v);
+  const esFecha = (v) => v instanceof Date && !isNaN(v);
+  function tipoCelda(v) { if (v === null || v === undefined || v === '') return 'vacio'; if (esNum(v)) return 'numero'; if (esFecha(v)) return 'fecha'; if (typeof v === 'boolean') return 'logico'; return 'texto'; }
+  function hoja(ws, nombre, XLSX) {
+    const filas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+    let inicio = filas.findIndex((f) => f.filter((c) => c !== null && c !== '').length >= 2);
+    if (inicio < 0) inicio = 0;
+    const cab = (filas[inicio] || []).map((c, i) => (c === null || c === '' ? `col${i + 1}` : String(c).trim().slice(0, 40)));
+    // Filas con fórmulas (totales, subtotales) no cuentan como datos: inflarían sumas y promedios.
+    const filasConFormula = new Set();
+    for (const dir in ws) if (dir[0] !== '!' && ws[dir] && ws[dir].f) filasConFormula.add(XLSX.utils.decode_cell(dir).r);
+    const datos = filas.slice(inicio + 1).map((f, i) => ({ f, r: inicio + 1 + i })).filter(({ f, r }) => f.some((c) => c !== null && c !== '') && !filasConFormula.has(r)).map(({ f }) => f);
+    const filasCalculadas = filasConFormula.size;
+    const columnas = cab.map((nombreCol, i) => {
+      const vals = datos.map((f) => f[i]);
+      const tipos = {};
+      for (const v of vals) tipos[tipoCelda(v)] = (tipos[tipoCelda(v)] || 0) + 1;
+      const nulos = tipos.vacio || 0;
+      const tipo = ['numero', 'fecha', 'texto', 'logico'].sort((a, b) => (tipos[b] || 0) - (tipos[a] || 0))[0];
+      const col = { nombre: nombreCol, tipo: (tipos[tipo] || 0) ? tipo : 'vacio', nulos, n: vals.length - nulos };
+      if (col.tipo === 'numero') {
+        const nums = vals.filter(esNum);
+        col.min = Math.min(...nums); col.max = Math.max(...nums); col.suma = nums.reduce((a, b) => a + b, 0); col.promedio = nums.length ? col.suma / nums.length : 0;
+      } else if (col.tipo === 'texto') {
+        const cuenta = new Map();
+        for (const v of vals) if (v !== null && v !== '') cuenta.set(String(v), (cuenta.get(String(v)) || 0) + 1);
+        col.distintos = cuenta.size;
+        col.top = [...cuenta].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([v, c]) => ({ valor: v.slice(0, 40), n: c }));
+      } else if (col.tipo === 'fecha') {
+        const fs = vals.filter(esFecha).map((d) => d.getTime());
+        col.desde = new Date(Math.min(...fs)).toISOString().slice(0, 10); col.hasta = new Date(Math.max(...fs)).toISOString().slice(0, 10);
+      }
+      return col;
+    });
+    const formulas = [], errores = [], funciones = {};
+    const ref = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
+    if (ref) for (let R = ref.s.r; R <= ref.e.r; R++) for (let Cc = ref.s.c; Cc <= ref.e.c; Cc++) {
+      const dir = XLSX.utils.encode_cell({ r: R, c: Cc }); const cel = ws[dir]; if (!cel) continue;
+      if (cel.f) { formulas.push({ celda: dir, formula: cel.f.slice(0, 120), valor: cel.v ?? null }); for (const fn of String(cel.f).toUpperCase().match(/[A-Z][A-Z0-9.]*(?=\()/g) || []) funciones[fn] = (funciones[fn] || 0) + 1; }
+      if (cel.t === 'e' || (typeof cel.v === 'string' && /^#(REF|DIV\/0|VALUE|NAME|N\/A|NUM)!?/.test(cel.v))) errores.push({ celda: dir, valor: String(cel.w || cel.v) });
+    }
+    return { nombre, filas: datos.length, filasCalculadas, columnas, muestra: datos.slice(0, 300).map((f) => cab.map((_, i) => f[i])), cabecera: cab, formulas, funciones, errores };
+  }
+  function libro(wb, XLSX) { return { hojas: wb.SheetNames.map((n) => hoja(wb.Sheets[n], n, XLSX)) }; }
+  const fmt = (n) => Math.round(n * 100) / 100;
+  // Texto compacto del descubrimiento: lo que lee el modelo y, resumido, Claude.
+  function textoLibro(d, max = 1800) {
+    const partes = [];
+    for (const h of d.hojas) {
+      const cols = h.columnas.map((c) => c.tipo === 'numero' ? `${c.nombre} (número: suma ${fmt(c.suma)}, prom ${fmt(c.promedio)}, min ${fmt(c.min)}, max ${fmt(c.max)}${c.nulos ? `, ${c.nulos} vacíos` : ''})`
+        : c.tipo === 'texto' ? `${c.nombre} (texto, ${c.distintos} distintos: ${c.top.map((t) => `${t.valor} ×${t.n}`).join(', ')})`
+        : c.tipo === 'fecha' ? `${c.nombre} (fecha ${c.desde} a ${c.hasta})` : `${c.nombre} (${c.tipo})`).join('; ');
+      const fn = Object.entries(h.funciones).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => `${k} ×${v}`).join(', ');
+      partes.push(`Hoja «${h.nombre}»: ${h.filas} filas de datos${h.filasCalculadas ? ` (+${h.filasCalculadas} filas con fórmulas, excluidas de las cifras)` : ''}, ${h.columnas.length} columnas. Columnas: ${cols}.${h.formulas.length ? ` Fórmulas: ${h.formulas.length} (${fn}).` : ' Sin fórmulas.'}${h.errores.length ? ` Errores: ${h.errores.length} (${h.errores.slice(0, 5).map((e) => `${e.celda} ${e.valor}`).join(', ')}).` : ''}`);
+    }
+    const t = partes.join('\n');
+    return t.length > max ? t.slice(0, max - 1) + '…' : t;
+  }
+  function muestraCsv(h, maxFilas = 300, maxChars = 60000) {
+    const lineas = [h.cabecera.join('\t'), ...h.muestra.slice(0, maxFilas).map((f) => f.map((v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v ?? '')).join('\t'))];
+    let t = lineas.join('\n');
+    return t.length > maxChars ? t.slice(0, maxChars) + '\n…' : t;
+  }
+  return { libro, textoLibro, muestraCsv };
+})();
+</script>
+<script type="module">
+import { App } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js';
+
+const CLAVE_LLAVE = 'ra-openrouter-key', CLAVE_VERIFIER = 'ra-pkce-verifier', CLAVE_PERMISO = 'ra-docs-permiso', CLAVE_FRASE = 'ra-cerebro-frase', CLAVE_NOTAS = 'ra-cerebro-notas';
+const OPENROUTER = 'https://openrouter.ai';
+const CEREBRO_URL = '__CEREBRO_URL__';
+const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
+const MAX_TEXTO = 60000;
+const $ = (id) => document.getElementById(id);
+const guardado = { leer(k) { try { return localStorage.getItem(k); } catch { return null; } }, escribir(k, v) { try { localStorage.setItem(k, v); } catch {} }, borrar(k) { try { localStorage.removeItem(k); } catch {} } };
+const escapar = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (n) => Math.round(n).toLocaleString('es-PE');
+
+const estado = { peticion: { instruccion: '', accion: '', modelo: MODELO_POR_DEFECTO }, archivo: null, desc: null, contexto: '', analisis: '', consulta: { claude: 0, externo: 0, evitado: 0, costo: 0 }, enCurso: false, entradaChars: 0, salidaChars: 0 };
+
+function mostrarEstado(t) { $('estado').hidden = !t; $('estado-texto').textContent = t || ''; }
+function mostrarError(id, t) { $(id).hidden = !t; $(id).textContent = t || ''; }
+function pintarMedidor() {
+  const m = estado.consulta, max = Math.max(m.claude, m.externo, m.evitado, 1);
+  const fila = (nombre, valor, color, extra = '') => `<span>${nombre}</span><span class="barra"><i style="width:${(valor / max) * 100}%;background:var(${color})"></i></span><span class="cifra">${fmt(valor)}${extra}</span>`;
+  $('medidor-consulta').innerHTML = fila('Claude ≈', m.claude, '--claude') + fila('Externo', m.externo, '--externo', ` · $${m.costo.toFixed(4)}`) + fila('Evitado', m.evitado, '--evitado');
+}
+function sumar(d) { for (const k of Object.keys(d)) estado.consulta[k] += d[k]; pintarMedidor(); }
+
+// ---- OpenRouter: misma llave que el panel Research (mismo origen) ----
+const b64url = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const llave = () => guardado.leer(CLAVE_LLAVE);
+async function autorizar() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  guardado.escribir(CLAVE_VERIFIER, verifier);
+  const url = `${OPENROUTER}/auth?code_challenge=${challenge}&code_challenge_method=S256&key_label=Research%20Academy%20Panel`;
+  $('enlace-auth').href = url; $('enlace-auth').textContent = url; $('paso-codigo').hidden = false;
+  let abierto = false;
+  try { if (app.openLink) abierto = !(await app.openLink({ url })).isError; } catch {}
+  if (!abierto) { try { window.open(url, '_blank', 'noopener'); } catch {} }
+}
+async function canjear() {
+  const code = $('codigo').value.trim(), verifier = guardado.leer(CLAVE_VERIFIER);
+  if (!code || !verifier) return mostrarError('error-auth', 'Pulsa «Autorizar» y pega el código.');
+  try {
+    const r = await fetch(`${OPENROUTER}/api/v1/auth/keys`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: 'S256' }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.key) throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`);
+    guardado.escribir(CLAVE_LLAVE, j.key); guardado.borrar(CLAVE_VERIFIER); $('codigo').value = ''; $('conectar').hidden = true;
+    if (estado.archivo && !estado.analisis) await analizar();
+  } catch (e) { mostrarError('error-auth', 'No se pudo conectar: ' + e.message); }
+}
+
+async function llamarChat(mensajes, alTexto, maxTokens = 1200) {
+  const cuerpo = { model: estado.peticion.modelo, messages: mensajes, stream: true, max_tokens: maxTokens, reasoning: { enabled: false }, usage: { include: true } };
+  let r = await fetch(`${OPENROUTER}/api/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave()}`, 'X-Title': 'Research Academy Documentos' }, body: JSON.stringify(cuerpo) });
+  if (r.status === 400) { Object.assign(cuerpo, { max_tokens: maxTokens + 2048, reasoning: { exclude: true } }); r = await fetch(`${OPENROUTER}/api/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave()}`, 'X-Title': 'Research Academy Documentos' }, body: JSON.stringify(cuerpo) }); }
+  if (r.status === 401) { guardado.borrar(CLAVE_LLAVE); $('conectar').hidden = false; throw new Error('OpenRouter rechazó la llave. Vuelve a conectar.'); }
+  if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`); }
+  const lector = r.body.getReader(), dec = new TextDecoder();
+  let buf = '', texto = '', usage = {}, finish;
+  for (;;) {
+    const { value, done } = await lector.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i; while ((i = buf.indexOf('\n')) >= 0) {
+      const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!l.startsWith('data: ') || l === 'data: [DONE]') continue;
+      let j; try { j = JSON.parse(l.slice(6)); } catch { continue; }
+      if (j.error) throw new Error(j.error.message || 'error del modelo');
+      const c = j.choices?.[0]; if (c?.delta?.content) { texto += c.delta.content; alTexto?.(texto); } if (c?.finish_reason) finish = c.finish_reason; if (j.usage) usage = j.usage;
+    }
+  }
+  const ext = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0);
+  sumar({ externo: ext, evitado: ext, costo: usage.cost || 0 });
+  return { texto: texto.trim(), usage, finish };
+}
+
+// ---- Lectura de archivos, en el navegador ----
+async function leerArchivo(f) {
+  const nombre = f.name, ext = nombre.toLowerCase().split('.').pop();
+  const buf = await f.arrayBuffer();
+  sumar({ evitado: buf.byteLength / 3.8 });
+  if (['xlsx', 'xls', 'xlsm', 'csv', 'tsv'].includes(ext)) {
+    const wb = XLSX.read(buf, { type: 'array', cellFormula: true, cellDates: true, cellNF: false });
+    const d = RA_descubrir.libro(wb, XLSX);
+    return { tipo: 'tabla', nombre, bytes: buf.byteLength, desc: d, resumen: RA_descubrir.textoLibro(d), muestra: d.hojas.map((h) => `## ${h.nombre}\n${RA_descubrir.muestraCsv(h)}`).join('\n\n').slice(0, MAX_TEXTO) };
+  }
+  if (ext === 'pdf') {
+    const pdfjs = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
+    pdfjs.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    const doc = await pdfjs.getDocument({ data: buf }).promise;
+    let texto = '';
+    for (let p = 1; p <= doc.numPages; p++) {
+      mostrarEstado(`Leyendo PDF, página ${p} de ${doc.numPages}…`);
+      const pg = await doc.getPage(p); const tc = await pg.getTextContent();
+      texto += `\n\n[Página ${p}]\n` + tc.items.map((it) => it.str).join(' ').replace(/\s+/g, ' ');
+    }
+    const palabras = texto.split(/\s+/).filter(Boolean).length;
+    return { tipo: 'texto', nombre, bytes: buf.byteLength, paginas: doc.numPages, palabras, texto, resumen: `PDF de ${doc.numPages} páginas, ${palabras} palabras${palabras < 30 * doc.numPages ? ' (poco texto: puede ser escaneado; sin OCR)' : ''}.` };
+  }
+  if (ext === 'docx') {
+    const r = await mammoth.convertToHtml({ arrayBuffer: buf });
+    const html = r.value, texto = html.replace(/<\/(p|h\d|li|tr)>/g, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    const titulos = [...html.matchAll(/<h(\d)[^>]*>(.*?)<\/h\d>/g)].map((m) => `${'#'.repeat(+m[1])} ${m[2].replace(/<[^>]+>/g, '')}`);
+    const palabras = texto.split(/\s+/).filter(Boolean).length;
+    return { tipo: 'texto', nombre, bytes: buf.byteLength, palabras, titulos, texto, resumen: `Word de ${palabras} palabras, ${titulos.length} títulos${titulos.length ? ': ' + titulos.slice(0, 8).join(' | ') : ''}.` };
+  }
+  throw new Error('Formato no admitido. Usa .xlsx, .xls, .csv, .pdf o .docx');
+}
+
+function pintarDescubrimiento(a) {
+  $('descubrimiento').hidden = false;
+  $('resumen-archivo').textContent = `${a.nombre} · ${fmt(a.bytes / 1024)} KB · ${a.resumen}`;
+  $('chips').innerHTML = ''; $('hojas').innerHTML = ''; $('texto-doc').hidden = true;
+  if (a.tipo === 'tabla') {
+    const chips = [];
+    for (const h of a.desc.hojas) { chips.push(`<span class="chip">${escapar(h.nombre)}: ${h.filas} filas × ${h.columnas.length}</span>`); if (h.formulas.length) chips.push(`<span class="chip">${h.formulas.length} fórmulas</span>`); if (h.errores.length) chips.push(`<span class="chip mal">${h.errores.length} errores</span>`); }
+    $('chips').innerHTML = chips.join('');
+    $('hojas').innerHTML = a.desc.hojas.map((h) => `<h3>${escapar(h.nombre)}</h3><div class="tabla"><table><thead><tr><th>Columna</th><th>Tipo</th><th class="n">Vacíos</th><th>Resumen</th></tr></thead><tbody>${h.columnas.map((c) => `<tr><td>${escapar(c.nombre)}</td><td>${c.tipo}</td><td class="n">${c.nulos}</td><td>${c.tipo === 'numero' ? `suma ${fmt(c.suma)} · prom ${(Math.round(c.promedio * 100) / 100).toLocaleString('es-PE')} · min ${fmt(c.min)} · max ${fmt(c.max)}` : c.tipo === 'texto' ? `${c.distintos} distintos · ${escapar(c.top.map((t) => `${t.valor} ×${t.n}`).join(', '))}` : c.tipo === 'fecha' ? `${c.desde} → ${c.hasta}` : ''}</td></tr>`).join('')}</tbody></table></div>${h.formulas.length ? `<details><summary class="nota" style="cursor:pointer">Fórmulas (${h.formulas.length})</summary><div class="tabla"><table><thead><tr><th>Celda</th><th>Fórmula</th><th class="n">Valor</th></tr></thead><tbody>${h.formulas.slice(0, 200).map((f) => `<tr><td>${f.celda}</td><td><code>${escapar(f.formula)}</code></td><td class="n">${escapar(f.valor ?? '')}</td></tr>`).join('')}</tbody></table></div></details>` : ''}${h.errores.length ? `<p class="nota" style="color:var(--bad)">Errores: ${escapar(h.errores.slice(0, 10).map((e) => `${e.celda} ${e.valor}`).join(', '))}</p>` : ''}`).join('');
+  } else { $('texto-doc').hidden = false; $('texto-pre').textContent = a.texto.slice(0, 1500); }
+}
+
+function sistemaAnalisis(a) {
+  const accion = estado.peticion.accion || $('accion').value;
+  return `Eres un analista. Responde en español, claro, en máximo 250 palabras. Primero 3 a 6 hallazgos con cifras exactas tomadas de los datos (no inventes números). Luego, según la acción pedida (${accion || 'solo analizar'}), di en 3 líneas qué harías y qué falta. Termina con una línea "TEMA: <2 a 4 palabras>".`;
+}
+async function analizar() {
+  const a = estado.archivo; if (!a || estado.enCurso) return;
+  if (!llave()) { $('conectar').hidden = false; return; }
+  if (!$('permiso').checked) { $('analisis').hidden = false; $('respuesta').textContent = 'Sin permiso para enviar el contenido al modelo. El descubrimiento de arriba sigue disponible y puedes enviarlo a Claude.'; estado.analisis = ''; armarContexto(); return; }
+  estado.enCurso = true; mostrarError('error', ''); $('analisis').hidden = false; $('respuesta').textContent = ''; $('respuesta').classList.add('flujo');
+  try {
+    let cuerpo;
+    if (a.tipo === 'tabla') cuerpo = `Instrucción del alumno: ${estado.peticion.instruccion || '(sin instrucción)'}\n\nEstructura y estadísticas (calculadas, exactas):\n${a.resumen}\n\nMuestra de datos (hasta 300 filas por hoja, TSV):\n${a.muestra}`;
+    else {
+      let texto = a.texto;
+      if (texto.length > MAX_TEXTO) { // por partes: resúmenes parciales y luego el análisis
+        const partes = []; for (let i = 0; i < texto.length; i += MAX_TEXTO) partes.push(texto.slice(i, i + MAX_TEXTO));
+        const resumenes = [];
+        for (let i = 0; i < partes.length; i++) { mostrarEstado(`Resumiendo parte ${i + 1} de ${partes.length}…`); resumenes.push((await llamarChat([{ role: 'system', content: 'Resume en español, en 150 palabras, con cifras y nombres propios exactos.' }, { role: 'user', content: partes[i] }], null, 500)).texto); }
+        texto = resumenes.map((r, i) => `[Parte ${i + 1}]\n${r}`).join('\n\n');
+      }
+      cuerpo = `Instrucción del alumno: ${estado.peticion.instruccion || '(sin instrucción)'}\n\n${a.resumen}\n\nContenido:\n${texto}`;
+    }
+    mostrarEstado(`Analizando con ${estado.peticion.modelo}…`);
+    const r = await llamarChat([{ role: 'system', content: sistemaAnalisis(a) }, { role: 'user', content: cuerpo }], (t) => { $('respuesta').textContent = t; });
+    estado.analisis = r.texto; $('respuesta').textContent = r.texto; $('respuesta').classList.remove('flujo');
+    $('uso').textContent = `entrada ${fmt(r.usage.prompt_tokens || 0)} · salida ${fmt(r.usage.completion_tokens || 0)} · costo $${(r.usage.cost || 0).toFixed(4)}`;
+    armarContexto();
+    await guardarEnCerebro();
+  } catch (e) { $('respuesta').classList.remove('flujo'); mostrarError('error', 'No se pudo analizar: ' + e.message); }
+  finally { estado.enCurso = false; mostrarEstado(''); }
+}
+
+function armarContexto() {
+  const a = estado.archivo, accion = $('accion').value;
+  const hallazgos = estado.analisis ? estado.analisis.replace(/TEMA:.*$/s, '').trim().slice(0, 1200) : '(sin análisis del modelo)';
+  estado.contexto = [`Contexto de documento (Research Academy Documentos):`, `Archivo: ${a.nombre} (${fmt(a.bytes / 1024)} KB)`, `Descubrimiento: ${a.resumen}`, a.tipo === 'tabla' ? `Estructura:\n${RA_descubrir.textoLibro(a.desc, 1200)}` : a.titulos?.length ? `Títulos: ${a.titulos.slice(0, 10).join(' | ')}` : '', `Hallazgos del análisis:\n${hallazgos}`, `Acción pedida: ${accion || 'no indicada'}`, `Instrucción: ${estado.peticion.instruccion || '(ninguna)'}`, `El archivo sigue en el panel; no lo pidas. Si la acción no está indicada, confirma en 2 líneas lo que entendiste y pregunta qué hacer: informe, corregir, PPT, añadir sección o referencias.`].filter(Boolean).join('\n');
+}
+
+async function enviarAClaude() {
+  armarContexto();
+  const nota = $('nota-claude'); nota.hidden = false;
+  const caps = app.getHostCapabilities?.() || {};
+  try {
+    if (caps.message && app.sendMessage) { await app.sendMessage({ role: 'user', content: [{ type: 'text', text: estado.contexto }] }); nota.textContent = `Enviado al chat (~${fmt(estado.contexto.length / 3.8)} tokens de Claude). Claude confirmará lo entendido y preguntará la acción si falta.`; sumar({ claude: estado.contexto.length / 3.8 }); }
+    else { await navigator.clipboard.writeText(estado.contexto); nota.textContent = 'Este host no permite enviar al chat. Contexto copiado: pégalo en el chat.'; }
+  } catch (e) { nota.textContent = 'No se pudo enviar: ' + e.message; }
+}
+
+// ---- Cerebro: misma frase y mismo almacén que el panel Research ----
+const sha256hex = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t).trim().normalize('NFC'))))].map((b) => b.toString(16).padStart(2, '0')).join('');
+async function guardarEnCerebro() {
+  const frase = guardado.leer(CLAVE_FRASE); if (!frase) { $('sync').textContent = 'No se guardó en el cerebro: activa tu frase clave en el panel Research.'; return; }
+  const a = estado.archivo, tema = (estado.analisis.match(/TEMA:\s*(.+)$/m)?.[1] || a.nombre).trim().slice(0, 60);
+  const hallazgos = estado.analisis.split('\n').map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter((l) => l.length > 15 && !/^TEMA:/.test(l)).slice(0, 4);
+  const ahora = new Date().toISOString();
+  const nota = { id: `d_${Date.now().toString(36)}`, fecha: ahora, actualizado: ahora, modo: 'documento', pregunta: `${a.nombre}: ${estado.peticion.instruccion || 'análisis'}`, respuesta: `${a.resumen}\n\n${estado.analisis}`, fuentes: [], tema, hallazgos, etiquetas: ['documento', a.tipo] };
+  let notas = []; try { notas = JSON.parse(guardado.leer(CLAVE_NOTAS) || '[]'); } catch {}
+  notas.unshift(nota); guardado.escribir(CLAVE_NOTAS, JSON.stringify(notas));
+  if (!CEREBRO_URL || CEREBRO_URL.startsWith('__')) { $('sync').textContent = 'Guardado en este navegador.'; return; }
+  try {
+    const id = await sha256hex(frase), url = `${CEREBRO_URL}/cerebro/${id}`;
+    const remoto = await (await fetch(url, { cache: 'no-store' })).json();
+    const porId = new Map(); for (const n of [...(remoto.notas || []), ...notas]) { const p = porId.get(n.id); if (!p || String(n.actualizado || '') > String(p.actualizado || '')) porId.set(n.id, n); }
+    const todas = [...porId.values()].sort((x, y) => String(y.fecha || '').localeCompare(String(x.fecha || '')));
+    guardado.escribir(CLAVE_NOTAS, JSON.stringify(todas));
+    const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notas: todas }) });
+    if (!r.ok) throw new Error(`servidor respondió ${r.status}`);
+    $('sync').textContent = `Guardado en el cerebro (${todas.length} notas).`; $('sync').className = 'sync ok';
+  } catch (e) { $('sync').textContent = 'Guardado aquí; no se pudo sincronizar: ' + e.message; $('sync').className = 'sync mal'; }
+}
+
+async function procesar(f) {
+  if (!f) return;
+  mostrarError('error', ''); $('analisis').hidden = true; estado.analisis = '';
+  try { mostrarEstado(`Leyendo ${f.name}…`); estado.archivo = await leerArchivo(f); pintarDescubrimiento(estado.archivo); mostrarEstado(''); await analizar(); }
+  catch (e) { mostrarEstado(''); mostrarError('error', 'No se pudo leer: ' + e.message); }
+}
+
+// ---- Host ----
+const app = new App({ name: 'research-academy-docs', version: '0.1.0' });
+app.ontoolinput = (p) => { const a = p?.arguments || {}; estado.entradaChars = JSON.stringify(a).length; if (a.instruccion) $('instruccion').textContent = a.instruccion; if (a.accion) $('accion').value = a.accion; };
+app.ontoolresult = (r) => {
+  const sc = r?.structuredContent || {}; estado.salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
+  estado.consulta = { claude: 0, externo: 0, evitado: 0, costo: 0 }; sumar({ claude: (estado.entradaChars + estado.salidaChars) / 3.8 + 45 });
+  estado.peticion = { instruccion: sc.instruccion || '', accion: sc.accion || '', modelo: sc.modelo || MODELO_POR_DEFECTO };
+  $('instruccion').textContent = estado.peticion.instruccion || 'Analiza el archivo'; $('modelo').textContent = estado.peticion.modelo; if (sc.accion) $('accion').value = sc.accion;
+};
+app.onhostcontextchanged = (c) => { if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; };
+
+$('zona').addEventListener('click', () => $('archivo').click());
+$('zona').addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && $('archivo').click());
+$('archivo').addEventListener('change', (e) => procesar(e.target.files?.[0]));
+for (const ev of ['dragenter', 'dragover']) $('zona').addEventListener(ev, (e) => { e.preventDefault(); $('zona').classList.add('sobre'); });
+for (const ev of ['dragleave', 'drop']) $('zona').addEventListener(ev, (e) => { e.preventDefault(); $('zona').classList.remove('sobre'); });
+$('zona').addEventListener('drop', (e) => procesar(e.dataTransfer?.files?.[0]));
+$('btn-autorizar').addEventListener('click', autorizar); $('btn-canjear').addEventListener('click', canjear); $('codigo').addEventListener('keydown', (e) => e.key === 'Enter' && canjear());
+$('btn-claude').addEventListener('click', enviarAClaude);
+$('btn-copiar').addEventListener('click', async () => { armarContexto(); try { await navigator.clipboard.writeText(estado.contexto); $('btn-copiar').textContent = 'Copiado'; } catch { $('btn-copiar').textContent = 'No se pudo copiar'; } setTimeout(() => ($('btn-copiar').textContent = 'Copiar contexto'), 1500); });
+$('btn-reanalizar').addEventListener('click', analizar);
+$('permiso').checked = (guardado.leer(CLAVE_PERMISO) ?? '1') === '1'; $('permiso').addEventListener('change', () => guardado.escribir(CLAVE_PERMISO, $('permiso').checked ? '1' : '0'));
+$('accion').addEventListener('change', () => { estado.peticion.accion = $('accion').value; });
+pintarMedidor();
+if (!llave()) $('conectar').hidden = false;
+try { await app.connect(); const c = app.getHostContext?.(); if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; } catch (e) { mostrarError('error', 'No se pudo conectar con el host: ' + e.message); }
+</script>
+</body>
+</html>

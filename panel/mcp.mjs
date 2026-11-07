@@ -17,7 +17,7 @@ export const CONFIG_URI = 'ui://research-academy/config';
 export const CODIGO_URI = 'ui://research-academy/codigo';
 export const TRES_URI = 'ui://research-academy/3d';
 export const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
-export const VERSION = '0.12.3';
+export const VERSION = '0.12.4';
 
 // Metadatos de la interfaz: a qué dominios puede conectarse el panel y de dónde carga módulos.
 export function metaUi() {
@@ -36,6 +36,7 @@ export function metaUi() {
 }
 
 // Base del almacén del cerebro: CEREBRO_URL explícita, o SERVER_URL sin /mcp. Vacío = solo local.
+export const conVersion = (html) => html.split('__CEREBRO_URL__/proveedores.js').join(`__CEREBRO_URL__/proveedores.js?v=${VERSION}`).split('__CEREBRO_URL__/docs-extra.js').join(`__CEREBRO_URL__/docs-extra.js?v=${VERSION}`).split('__CEREBRO_URL__/comun.css').join(`__CEREBRO_URL__/comun.css?v=${VERSION}`).split('__VERSION__').join(VERSION);
 export const cerebroUrl = () => (process.env.CEREBRO_URL || (process.env.SERVER_URL ? process.env.SERVER_URL.replace(/\/mcp\/?$/, '') : '')).replace(/\/$/, '');
 
 const esGratis = (modelo) => typeof modelo === 'string' && modelo.endsWith(':free');
@@ -297,7 +298,7 @@ export function buildServer() {
 
   for (const [uri, archivo, nombre, desc] of [[CONFIG_URI, 'config.html', 'Configuración de Research Academy', 'Llaves, proveedores y preferencias, solo en el navegador del alumno.'], [CODIGO_URI, 'codigo.html', 'Panel Código de Research Academy', 'Código con proveedores gratuitos, vista previa y ejecución.'], [TRES_URI, 'tres.html', 'Panel 3D de Research Academy', 'Objetos en 3D con three.js a partir de texto o foto.']]) {
     registerAppResource(server, nombre, uri, { description: desc, mimeType: RESOURCE_MIME_TYPE, _meta: { ui: metaUi() } }, async () => ({
-      contents: [{ uri, mimeType: RESOURCE_MIME_TYPE, text: (await readFile(join(AQUI, archivo), 'utf8')).split('__CEREBRO_URL__').join(cerebroUrl()), _meta: { ui: metaUi() } }],
+      contents: [{ uri, mimeType: RESOURCE_MIME_TYPE, text: conVersion(await readFile(join(AQUI, archivo), 'utf8')).split('__CEREBRO_URL__').join(cerebroUrl()), _meta: { ui: metaUi() } }],
     }));
   }
 
@@ -307,7 +308,7 @@ export function buildServer() {
     DOCS_URI,
     { description: 'Panel donde el alumno suelta un archivo y lo analiza sin pasar por Claude.', mimeType: RESOURCE_MIME_TYPE, _meta: { ui: metaUi() } },
     async () => ({
-      contents: [{ uri: DOCS_URI, mimeType: RESOURCE_MIME_TYPE, text: (await readFile(join(AQUI, 'docs.html'), 'utf8')).split('__CEREBRO_URL__').join(cerebroUrl()), _meta: { ui: metaUi() } }],
+      contents: [{ uri: DOCS_URI, mimeType: RESOURCE_MIME_TYPE, text: conVersion(await readFile(join(AQUI, 'docs.html'), 'utf8')).split('__CEREBRO_URL__').join(cerebroUrl()), _meta: { ui: metaUi() } }],
     }),
   );
 

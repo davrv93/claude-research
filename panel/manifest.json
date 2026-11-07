@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "research-academy-panel",
   "display_name": "Research Academy Panel",
-  "version": "0.12.3",
+  "version": "0.12.4",
   "description": "Delega preguntas e investigaciones web a un modelo gratuito de OpenRouter y muestra la respuesta en un panel, sin que entre al contexto de Claude.",
   "long_description": "Claude llama a delegar o investigar y recibe una sola línea. La búsqueda (Parallel) y la respuesta del modelo gratuito ocurren en el panel, en el navegador del usuario, con su propia llave de OpenRouter creada por OAuth PKCE. El servidor no guarda llaves ni llama a ningún modelo.",
   "author": { "name": "JMD Learning" },

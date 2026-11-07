@@ -17,7 +17,22 @@ Delegacion real: la respuesta del modelo gratuito se muestra al alumno en un pan
 
 Tokens de Claude por pregunta delegada: la llamada a la herramienta (la pregunta) + una linea de resultado + una frase de respuesta. Cerca de 60 a 120 tokens de salida en lugar de 300 a 600.
 
-## Ejecutar local
+## Instalar en Claude Desktop sin servidor (recomendado para el taller)
+
+1. Descargar `dist/research-academy-panel-<version>.mcpb` del repositorio (o del Release).
+2. Doble clic en el archivo, o Claude Desktop > Configuracion > Extensiones > Instalar extension. Claude Desktop trae su propio Node; no hay que instalar nada mas.
+3. En un chat, pedir: `research-academy investiga: cual es el sueldo minimo vigente en Peru`. Permitir el panel.
+4. Primera vez: el panel pide autorizar OpenRouter y pegar el codigo que OpenRouter muestra. Una sola vez por equipo.
+
+El servidor corre en la maquina del alumno por stdio (`stdio.mjs`). Nadie depende de un host del instructor. Solo app de escritorio Mac/Windows; para claude.ai web, ver "Desplegar".
+
+Reempaquetar tras cambios:
+
+```bash
+cd panel && npm install --omit=dev && npx @anthropic-ai/mcpb validate manifest.json && npx @anthropic-ai/mcpb pack . ../dist/research-academy-panel-$(node -p "require('./manifest.json').version").mcpb
+```
+
+## Ejecutar local (modo HTTP)
 
 ```bash
 cd panel

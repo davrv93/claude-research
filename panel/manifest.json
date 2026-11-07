@@ -1,0 +1,24 @@
+{
+  "manifest_version": "0.3",
+  "name": "research-academy-panel",
+  "display_name": "Research Academy Panel",
+  "version": "0.2.0",
+  "description": "Delega preguntas e investigaciones web a un modelo gratuito de OpenRouter y las muestra en un panel dentro de Claude, sin gastar el contexto de Claude.",
+  "long_description": "Dos herramientas: `delegar` (pregunta directa a un modelo :free) e `investigar` (busqueda web con Parallel + sintesis con fuentes). La respuesta se renderiza en un panel MCP App; Claude solo recibe una linea. La llave de OpenRouter se crea con OAuth desde el panel y se guarda solo en este equipo.",
+  "author": { "name": "Research Academy", "url": "https://github.com/davrv93/claude-research" },
+  "repository": { "type": "git", "url": "https://github.com/davrv93/claude-research" },
+  "homepage": "https://github.com/davrv93/claude-research",
+  "license": "MIT",
+  "keywords": ["research", "openrouter", "parallel", "mcp-app", "espanol"],
+  "server": {
+    "type": "node",
+    "entry_point": "stdio.mjs",
+    "mcp_config": { "command": "node", "args": ["${__dirname}/stdio.mjs"] }
+  },
+  "tools": [
+    { "name": "delegar", "description": "Pregunta directa a un modelo gratuito; respuesta en el panel." },
+    { "name": "investigar", "description": "Busqueda web con Parallel y sintesis con fuentes en el panel." }
+  ],
+  "privacy_policies": ["https://openrouter.ai/privacy", "https://parallel.ai/privacy-policy"],
+  "compatibility": { "platforms": ["darwin", "win32"], "runtimes": { "node": ">=18" } }
+}

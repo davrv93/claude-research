@@ -1,6 +1,15 @@
 # Pendientes y oportunidades (actualizado 2026-11-07)
 
-## Pendientes de verificar en claude.ai (necesitan host HTTPS)
+## Camino principal: extension .mcpb para Claude Desktop (sin servidor)
+
+Hecho: `panel/stdio.mjs`, `panel/manifest.json`, paquete en `dist/research-academy-panel-0.2.0.mcpb`. Verificado por stdio: initialize, tools/list (delegar, investigar), resources/read con csp. No se pudo instalar aqui: esta maquina no tiene Claude Desktop.
+
+Pendiente, en una maquina con Claude Desktop:
+1. Doble clic en el `.mcpb`, instalar, permitir el panel.
+2. Probar `delegar` e `investigar`; revisar flujo del codigo de OpenRouter y el aviso de terminos de Parallel.
+3. Publicar el `.mcpb` como Release de GitHub (`gh auth login` primero; el token actual es invalido).
+
+## Camino de respaldo para claude.ai web (necesita host HTTPS)
 
 1. Desplegar `panel/` en un host Node gratuito con `SERVER_URL=https://HOST/mcp`. Lo hace el instructor una sola vez; los alumnos no instalan nada.
 2. Agregar el conector por URL en claude.ai y comprobar que el panel se renderiza (permiso "Permitir").

@@ -90,7 +90,7 @@ async function generar() {
     mostrarEstado(estado.imagen ? 'Mirando la referencia y armando la escena…' : 'Armando la escena…');
     const max = Math.min(60, Math.max(4, Number($('max-piezas').value) || 24));
     const contenido = estado.imagen ? [{ type: 'text', text: `Objeto: ${desc || 'el de la imagen'}. Usa la imagen como referencia de forma, proporciones y colores.` }, { type: 'image_url', image_url: { url: estado.imagen } }] : `Objeto: ${desc}`;
-    const r = await P.llamarConRespaldo({ tarea: estado.imagen ? 'vision' : 'codigo', mensajes: [{ role: 'system', content: SISTEMA(max, $('estilo').value) }, { role: 'user', content: contenido }], maxTokens: 4000, stream: false });
+    const r = await P.llamarConRespaldo({ tarea: estado.imagen ? 'vision' : 'codigo', mensajes: [{ role: 'system', content: SISTEMA(max, $('estilo').value) }, { role: 'user', content: contenido }], maxTokens: 4000, stream: false, alPaso: (p) => mostrarEstado(p) });
     const m = r.texto.match(/\{[\s\S]*\}/); if (!m) throw new Error('el modelo no devolvió una escena válida');
     const esc = JSON.parse(m[0]); if (!Array.isArray(esc.piezas) || !esc.piezas.length) throw new Error('escena sin piezas');
     estado.escena = normalizar(esc);

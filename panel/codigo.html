@@ -82,7 +82,7 @@ async function generar() {
   const usuario = `${instruccion ? `Instrucción: ${instruccion}\n\n` : ''}${codigo ? `Código o error:\n${codigo.slice(0, 20000)}` : ''}`;
   try {
     mostrarEstado('Generando…');
-    const r = await P.llamarConRespaldo({ proveedor: $('proveedor').value || undefined, tarea: 'codigo', mensajes: [{ role: 'system', content: SISTEMAS[accion](lenguaje) }, { role: 'user', content: usuario }], maxTokens: 3000, alTexto: (t) => { $('salida').textContent = t; } });
+    const r = await P.llamarConRespaldo({ proveedor: $('proveedor').value || undefined, tarea: 'codigo', mensajes: [{ role: 'system', content: SISTEMAS[accion](lenguaje) }, { role: 'user', content: usuario }], maxTokens: 3000, alTexto: (t) => { $('salida').textContent = t; }, alPaso: (p) => mostrarEstado(p) });
     estado.ultimo = ['explicar', 'revisar'].includes(accion) ? r.texto : limpiarBloque(r.texto); estado.ultimoLenguaje = lenguaje;
     $('salida').textContent = estado.ultimo; $('salida').classList.remove('flujo');
     $('modelo').textContent = `${r.proveedor} · ${r.modelo} · ${r.ms} ms`;

@@ -11,10 +11,11 @@
   const guardado = { leer(k) { try { return localStorage.getItem(k); } catch { return null; } }, escribir(k, v) { try { localStorage.setItem(k, v); } catch {} }, borrar(k) { try { localStorage.removeItem(k); } catch {} } };
 
   // fetch con tiempo límite: ninguna llamada deja el panel colgado en «probando…».
+  const PRIMER_TOKEN_MS = 15000;
   async function fetchT(url, opts = {}, ms = 20000) {
     const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const t = ctl ? setTimeout(() => ctl.abort(), ms) : null;
-    try { return await fetch(url, ctl ? { ...opts, signal: ctl.signal } : opts); }
+    try { const r = await fetch(url, ctl ? { ...opts, signal: ctl.signal } : opts); if (r && ctl) r._ctl = ctl; return r; }
     catch (e) { if (e && e.name === 'AbortError') throw Object.assign(new Error(`sin respuesta en ${Math.round(ms / 1000)} s`), { timeout: true }); throw Object.assign(new Error(`no se pudo conectar (${e.message}); si es la primera vez, puede ser el CSP del panel`), { red: true }); }
     finally { if (t) clearTimeout(t); }
   }
@@ -83,10 +84,9 @@
     const lista = await candidatos(opts.proveedor, opts.tarea || 'texto');
     let ultimo;
     for (const modelo of lista) {
-      for (let intento = 0; intento < 2; intento++) {
-        try { return await llamarUno({ ...opts, modelo, _reintento: true }); }
-        catch (e) { ultimo = e; if (e.status === 503 || e.status === 429 || e.status === 500 || e.status === 502) { if (intento === 0) { await espera(1500); continue; } break; } if (e.status === 404) break; throw e; }
-      }
+      opts.alPaso?.(`probando ${modelo}…`);
+      try { return await llamarUno({ ...opts, modelo, _reintento: true }); }
+      catch (e) { ultimo = e; if (e.timeout || e.status === 503 || e.status === 429 || e.status === 500 || e.status === 502 || e.status === 404 || e.status === 599) continue; throw e; }
     }
     throw ultimo;
   }
@@ -110,8 +110,19 @@
     const cuerpo = { contents, generationConfig: { maxOutputTokens: maxTokens, ...(temperatura !== undefined ? { temperature: temperatura } : {}) } };
     if (sys) cuerpo.systemInstruction = { parts: [{ text: sys }] };
     const url = `${p.nativo}/models/${mod}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
-    const r = await fetchT(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': llave }, body: JSON.stringify(cuerpo) }, stream ? 120000 : 60000);
+    const r = await fetchT(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': llave }, body: JSON.stringify(cuerpo) }, stream ? PRIMER_TOKEN_MS : 60000);
     return r;
+  }
+  // Lee un cuerpo SSE con tope entre trozos: si el proveedor se queda mudo, aborta y el bucle pasa al siguiente modelo.
+  async function leerSse(r, porLinea, msEntreTrozos = PRIMER_TOKEN_MS) {
+    const lector = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+    for (;;) {
+      let timer; const guardia = new Promise((_, rej) => { timer = setTimeout(() => { try { r._ctl?.abort(); } catch {} rej(Object.assign(new Error(`sin respuesta en ${Math.round(msEntreTrozos / 1000)} s`), { status: 599, timeout: true })); }, msEntreTrozos); });
+      let paso; try { paso = await Promise.race([lector.read(), guardia]); } finally { clearTimeout(timer); }
+      const { value, done } = paso; if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i; while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (l.startsWith('data: ')) porLinea(l.slice(6)); }
+    }
   }
   function usoGemini(u) { return u ? { prompt_tokens: u.promptTokenCount || 0, completion_tokens: u.candidatesTokenCount || 0, total_tokens: u.totalTokenCount || 0 } : {}; }
 
@@ -126,18 +137,11 @@
       let texto = '', usage = {}, finish;
       if (!stream) { const j = await r.json(); texto = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join(''); usage = usoGemini(j.usageMetadata); finish = j.candidates?.[0]?.finishReason; }
       else {
-        const lector = r.body.getReader(), dec = new TextDecoder(); let buf = '';
-        for (;;) {
-          const { value, done } = await lector.read(); if (done) break;
-          buf += dec.decode(value, { stream: true });
-          let i; while ((i = buf.indexOf('\n')) >= 0) {
-            const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
-            if (!l.startsWith('data: ')) continue;
-            let j; try { j = JSON.parse(l.slice(6)); } catch { continue; }
-            const t = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join(''); if (t) { texto += t; alTexto?.(texto); }
-            if (j.candidates?.[0]?.finishReason) finish = j.candidates[0].finishReason; if (j.usageMetadata) usage = usoGemini(j.usageMetadata);
-          }
-        }
+        await leerSse(r, (d) => {
+          let j; try { j = JSON.parse(d); } catch { return; }
+          const t = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join(''); if (t) { texto += t; alTexto?.(texto); }
+          if (j.candidates?.[0]?.finishReason) finish = j.candidates[0].finishReason; if (j.usageMetadata) usage = usoGemini(j.usageMetadata);
+        });
       }
       return { texto: texto.trim(), usage, finish, proveedor, modelo: mod, ms: Date.now() - inicio };
     }
@@ -146,25 +150,19 @@
     if (proveedor === 'openrouter') { cuerpo.usage = { include: true }; cuerpo.reasoning = { enabled: false }; }
     const cabeceras = { 'Content-Type': 'application/json', Authorization: `Bearer ${llave}`, ...(p.extra || {}) };
     const inicio = Date.now();
-    let r = await fetchT(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) }, stream ? 120000 : 60000);
-    if (proveedor === 'openrouter' && r.status === 400) { cuerpo.reasoning = { exclude: true }; cuerpo.max_tokens = maxTokens + 2048; r = await fetchT(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) }, stream ? 120000 : 60000); }
+    let r = await fetchT(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) }, stream ? PRIMER_TOKEN_MS : 60000);
+    if (proveedor === 'openrouter' && r.status === 400) { cuerpo.reasoning = { exclude: true }; cuerpo.max_tokens = maxTokens + 2048; r = await fetchT(`${p.base}/chat/completions`, { method: 'POST', headers: cabeceras, body: JSON.stringify(cuerpo) }, stream ? PRIMER_TOKEN_MS : 60000); }
     if (r.status === 404 && !modelo && !_reintento) { const nuevo = await elegirModelo(proveedor, tarea, true); if (nuevo !== mod) return llamarUno({ proveedor, tarea, modelo: nuevo, mensajes, maxTokens, temperatura, alTexto, stream, _reintento: true }); }
     if (!r.ok) { const crudo = typeof r.text === 'function' ? await r.text().catch(() => '') : ''; let j = {}; try { j = JSON.parse(crudo); } catch { j = typeof r.json === 'function' ? await r.json().catch(() => ({})) : {}; } const motivo = typeof j.error === 'string' ? j.error : j.error?.message || (r.status === 503 ? 'servicio saturado en este momento' : r.status === 429 ? 'límite de peticiones alcanzado' : ''); throw Object.assign(new Error(`${p.nombre} respondió ${r.status}: ${motivo} (modelo ${mod})${!j.error && crudo ? ' · ' + crudo.replace(/\s+/g, ' ').slice(0, 160) : ''}`.trim()), { status: r.status, cuerpo: crudo.slice(0, 500) }); }
     let texto = '', usage = {}, finish;
     if (!stream) { const j = await r.json(); texto = j.choices?.[0]?.message?.content || ''; usage = j.usage || {}; finish = j.choices?.[0]?.finish_reason; }
     else {
-      const lector = r.body.getReader(), dec = new TextDecoder(); let buf = '';
-      for (;;) {
-        const { value, done } = await lector.read(); if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let i; while ((i = buf.indexOf('\n')) >= 0) {
-          const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
-          if (!l.startsWith('data: ') || l === 'data: [DONE]') continue;
-          let j; try { j = JSON.parse(l.slice(6)); } catch { continue; }
-          if (j.error) throw new Error(j.error.message || 'error del modelo');
-          const c = j.choices?.[0]; if (c?.delta?.content) { texto += c.delta.content; alTexto?.(texto); } if (c?.finish_reason) finish = c.finish_reason; if (j.usage) usage = j.usage;
-        }
-      }
+      await leerSse(r, (d) => {
+        if (d === '[DONE]') return;
+        let j; try { j = JSON.parse(d); } catch { return; }
+        if (j.error) throw new Error(j.error.message || 'error del modelo');
+        const c = j.choices?.[0]; if (c?.delta?.content) { texto += c.delta.content; alTexto?.(texto); } if (c?.finish_reason) finish = c.finish_reason; if (j.usage) usage = j.usage;
+      });
     }
     return { texto: texto.trim(), usage, finish, proveedor, modelo: mod, ms: Date.now() - inicio };
   }
@@ -176,13 +174,13 @@
     const errores = [];
     for (const id of lista) {
       try { return await llamar({ ...opts, proveedor: id }); }
-      catch (e) { errores.push(`${id}: ${e.message}`); if (e.sinLlave || e.status === 401 || e.status === 403 || e.status === 429 || (e.status || 0) >= 500 || /fetch/i.test(e.message)) continue; throw e; }
+      catch (e) { errores.push(`${id}: ${e.message}`); if (e.sinLlave || e.timeout || e.red || e.status === 401 || e.status === 403 || e.status === 404 || e.status === 429 || (e.status || 0) >= 500 || /fetch/i.test(e.message)) continue; throw e; }
     }
     throw new Error('Todos los proveedores fallaron. ' + errores.join(' | '));
   }
 
   async function probar(id, alPaso) {
-    try { alPaso?.('listando modelos…'); const ids = await listarModelos(id, true); const mod = await elegirModelo(id, 'texto'); alPaso?.(`probando ${mod}… (si está saturado reintenta y cambia de modelo)`); const r = await llamar({ proveedor: id, tarea: 'texto', mensajes: [{ role: 'user', content: 'Responde solo: ok' }], maxTokens: 8, stream: false }); return { ok: true, modelo: r.modelo, ms: r.ms, texto: r.texto.slice(0, 20), modelos: ids.length }; }
+    try { alPaso?.('listando modelos…'); const ids = await listarModelos(id, true); const mod = await elegirModelo(id, 'texto'); alPaso?.(`probando ${mod}… (si está saturado reintenta y cambia de modelo)`); const r = await llamar({ proveedor: id, tarea: 'texto', mensajes: [{ role: 'user', content: 'Responde solo: ok' }], maxTokens: 8, stream: false, alPaso }); return { ok: true, modelo: r.modelo, ms: r.ms, texto: r.texto.slice(0, 20), modelos: ids.length }; }
     catch (e) { return { ok: false, error: e.message }; }
   }
 

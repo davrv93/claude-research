@@ -17,7 +17,7 @@ export const CONFIG_URI = 'ui://research-academy/config';
 export const CODIGO_URI = 'ui://research-academy/codigo';
 export const TRES_URI = 'ui://research-academy/3d';
 export const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
-export const VERSION = '0.12.5';
+export const VERSION = '0.12.6';
 
 // Metadatos de la interfaz: a qué dominios puede conectarse el panel y de dónde carga módulos.
 export function metaUi() {

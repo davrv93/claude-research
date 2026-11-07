@@ -2,7 +2,7 @@
 
 ## Camino principal: extension .mcpb para Claude Desktop (sin servidor)
 
-Hecho: `panel/stdio.mjs`, `panel/manifest.json`, paquete en `dist/research-academy-panel-0.2.0.mcpb`. Verificado por stdio: initialize, tools/list (delegar, investigar), resources/read con csp. No se pudo instalar aqui: esta maquina no tiene Claude Desktop.
+Hecho: `panel/stdio.mjs`, `panel/manifest.json`, paquete en `dist/research-academy-panel-0.3.0.mcpb`. Verificado por stdio: initialize, tools/list (delegar, investigar), resources/read con csp. No se pudo instalar aqui: esta maquina no tiene Claude Desktop.
 
 Pendiente, en una maquina con Claude Desktop:
 1. Doble clic en el `.mcpb`, instalar, permitir el panel.

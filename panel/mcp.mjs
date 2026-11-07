@@ -14,7 +14,7 @@ const PANEL_HTML = readFileSync(new URL('./panel.html', import.meta.url), 'utf8'
 const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 
 export function buildServer() {
-  const server = new McpServer({ name: 'research-academy-panel', version: '0.2.0' });
+  const server = new McpServer({ name: 'research-academy-panel', version: '0.3.0' });
 
   registerAppTool(
     server,

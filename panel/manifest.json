@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "research-academy-panel",
   "display_name": "Research Academy Panel",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Delega preguntas e investigaciones web a un modelo gratuito de OpenRouter y las muestra en un panel dentro de Claude, sin gastar el contexto de Claude.",
   "long_description": "Dos herramientas: `delegar` (pregunta directa a un modelo :free) e `investigar` (busqueda web con Parallel + sintesis con fuentes). La respuesta se renderiza en un panel MCP App; Claude solo recibe una linea. La llave de OpenRouter se crea con OAuth desde el panel y se guarda solo en este equipo.",
   "author": { "name": "Research Academy", "url": "https://github.com/davrv93/claude-research" },

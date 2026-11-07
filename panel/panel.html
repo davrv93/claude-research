@@ -8,6 +8,10 @@
   #resp{white-space:pre-wrap;border-left:3px solid currentColor;padding:6px 10px;margin:8px 0;min-height:2em}
   #auth,#ask{display:none} .hidden{display:none!important}
   code{font-size:12px;word-break:break-all}
+  #medidor{margin:10px 0;padding:8px 10px;border:1px solid currentColor;border-radius:10px}
+  .barra{display:grid;grid-template-columns:110px 1fr 90px;gap:8px;align-items:center;margin:4px 0;font-size:12px}
+  .barra i{display:block;height:10px;border-radius:5px;background:currentColor;opacity:.75;min-width:2px}
+  .barra.claude i{opacity:1} .barra.evitado i{opacity:.35}
 </style></head>
 <body>
 <div id="estado" class="muted">Esperando pregunta…</div>
@@ -15,6 +19,14 @@
 <div id="resp"></div>
 <div id="uso" class="muted"></div>
 <ol id="fuentes" class="muted"></ol>
+<div id="medidor" class="hidden">
+  <div class="muted">Tokens de esta consulta</div>
+  <div class="barra claude"><span>Claude (estimado)</span><i id="b-claude"></i><b id="n-claude">0</b></div>
+  <div class="barra externo"><span>Externo (medido)</span><i id="b-ext"></i><b id="n-ext">0</b></div>
+  <div class="barra evitado"><span>Evitado a Claude</span><i id="b-evit"></i><b id="n-evit">0</b></div>
+  <div class="muted" id="acum"></div>
+  <div class="muted">Claude: caracteres que entraron y salieron de Claude por esta herramienta, divididos entre 3,8. No incluye el historial del chat ni los esquemas de herramientas. Externo: tokens reportados por OpenRouter. Evitado: lo que el modelo externo leyo y escribio y Claude no.</div>
+</div>
 
 <section id="auth">
   <p>Conecta tu cuenta gratuita de OpenRouter. La llave se guarda solo en este navegador, nunca pasa por Claude ni por el servidor.</p>
@@ -34,7 +46,26 @@
   const KEY = 'ra_openrouter_key', VER = 'ra_pkce_verifier';
   let ctx = { modo: 'delegar', pregunta: '', consultas: [], modelo: 'nvidia/nemotron-3-ultra-550b-a55b:free', max_palabras: 150 };
   let ultima = '';
-  const app = new App({ name: 'Research Academy Panel', version: '0.2.0' });
+  const app = new App({ name: 'Research Academy Panel', version: '0.3.0' });
+
+  // Medidor. est(): caracteres/3.8, aproximacion para espanol. Solo Claude.ai sabe el valor real.
+  const est = (t) => Math.ceil(((t ?? '').length) / 3.8);
+  const TOT = 'ra_totales';
+  let medida = { claude: 0, ext: 0, evit: 0 };
+  function medir({ argsTexto, respuestaClaude, usage, externoLeyo, externoEscribio }) {
+    const claude = est(argsTexto) + est(respuestaClaude ?? '') + 45; // 45: linea fija que Claude recibe y repite
+    const ext = (usage?.prompt_tokens ?? 0) + (usage?.completion_tokens ?? 0);
+    const evit = (externoLeyo ?? 0) + (externoEscribio ?? 0);
+    medida = { claude, ext, evit };
+    const max = Math.max(claude, ext, evit, 1);
+    $('b-claude').style.width = (100 * claude / max) + '%'; $('n-claude').textContent = '~' + claude;
+    $('b-ext').style.width = (100 * ext / max) + '%'; $('n-ext').textContent = ext || 'n/d';
+    $('b-evit').style.width = (100 * evit / max) + '%'; $('n-evit').textContent = '~' + evit;
+    let t = { n: 0, claude: 0, ext: 0, evit: 0 }; try { t = JSON.parse(localStorage.getItem(TOT)) ?? t; } catch {}
+    t.n++; t.claude += claude; t.ext += ext; t.evit += evit; localStorage.setItem(TOT, JSON.stringify(t));
+    $('acum').textContent = `Acumulado en este equipo: ${t.n} consultas · Claude ~${t.claude} · externo ${t.ext} · evitado ~${t.evit} tokens.`;
+    $('medidor').classList.remove('hidden');
+  }
 
   const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   async function pkce() {
@@ -100,6 +131,8 @@
       $('resp').textContent = ultima;
       const u = j.usage ?? {};
       $('uso').textContent = `Consumo externo: ${j.model ?? ctx.modelo} · ${u.prompt_tokens ?? '?'} entrada + ${u.completion_tokens ?? '?'} salida tokens · costo ${u.cost != null ? 'US$' + u.cost : 'n/d'} · id ${j.id ?? ''}. Claude: 0 tokens por este texto.`;
+      medir({ argsTexto: JSON.stringify({ pregunta: ctx.pregunta, consultas: ctx.consultas }), respuestaClaude: 'Listo, revisa el panel. Consumo: panel ' + ctx.modelo,
+        usage: u, externoLeyo: est(usuario) + est(sistema) + Math.round((ctx._crudo ?? 0) / 3.8), externoEscribio: u.completion_tokens ?? est(ultima) });
       $('estado').textContent = fuentes ? `Sintesis con ${fuentes.length} fuentes web (no verificada por Claude). Busqueda de ${ctx._crudo ?? '?'} caracteres que Claude no leyo.` : 'Respuesta del modelo externo (no verificada por Claude).';
     } catch (e) { $('estado').textContent = 'Error del modelo externo: ' + e.message; if (/401|403|key/i.test(e.message)) mostrarAuth(); }
   }

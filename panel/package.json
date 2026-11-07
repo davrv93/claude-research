@@ -1,6 +1,6 @@
 {
   "name": "research-academy-panel",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "MCP App: Claude delega preguntas e investigaciones a un modelo gratuito de OpenRouter y la respuesta se muestra en un panel, sin entrar al contexto de Claude.",
   "type": "module",
   "private": true,

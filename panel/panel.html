@@ -39,7 +39,12 @@
   .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: latido 1.2s ease-in-out infinite; }
   @keyframes latido { 50% { opacity: .25; } }
   @media (prefers-reduced-motion: reduce) { .punto { animation: none; } }
+  .turno + .turno { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
   .respuesta { margin-top: 10px; overflow-wrap: anywhere; }
+  .respuesta.cargando::before { content: ''; display: block; height: 10px; width: 55%; border-radius: 5px; background: var(--s2); animation: latido 1.2s ease-in-out infinite; }
+  .respuesta.flujo::after { content: '▍'; color: var(--accent); animation: latido .8s ease-in-out infinite; }
+  .cortada { margin-top: 6px; font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .cortada button { min-height: 0; padding: 3px 9px; font-size: 12px; }
   .respuesta p { margin: 0 0 8px; }
   .respuesta code { font: 12.5px var(--mono); background: var(--s2); padding: 1px 4px; border-radius: 4px; }
   .respuesta a.cita { font-size: 11px; font-weight: 700; text-decoration: none; vertical-align: super; color: var(--accent); }
@@ -88,16 +93,22 @@
   </section>
 
   <section class="caja" id="consulta" hidden aria-labelledby="t-consulta">
-    <h2 id="t-consulta">Pregunta</h2>
-    <p class="pregunta" id="pregunta"></p>
+    <h2 id="t-consulta">Hilo</h2>
+    <div id="hilo"></div>
+    <template id="plantilla-turno">
+      <article class="turno">
+        <p class="pregunta"></p>
+        <div class="respuesta" aria-live="polite"></div>
+        <div class="cortada" hidden><span>Respuesta cortada por el límite de tokens.</span><button class="btn-continuar">Continuar</button></div>
+        <div class="bloque-fuentes" hidden>
+          <h2 style="margin-top:12px">Fuentes</h2>
+          <ol class="fuentes"></ol>
+        </div>
+        <div class="uso"></div>
+      </article>
+    </template>
     <div class="estado" id="estado" role="status" aria-live="polite" hidden><span class="punto" aria-hidden="true"></span><span id="estado-texto"></span></div>
-    <div class="respuesta" id="respuesta" aria-live="polite"></div>
     <div class="error" id="error" role="alert" hidden></div>
-    <div id="bloque-fuentes" hidden>
-      <h2 style="margin-top:12px">Fuentes</h2>
-      <ol class="fuentes" id="fuentes"></ol>
-    </div>
-    <div class="uso" id="uso"></div>
     <div class="fila" id="acciones" hidden>
       <button id="btn-copiar">Copiar</button>
       <button id="btn-pasar" title="Envía la respuesta al contexto de Claude: eso sí gasta tokens de Claude">Pasar a Claude</button>
@@ -149,6 +160,7 @@ const estado = {
   entradaChars: 0,     // caracteres de los argumentos que escribió Claude
   salidaChars: 0,      // caracteres del resultado que leyó Claude
   mensajes: [],        // historial con el modelo externo, para los seguimientos
+  turnoPendiente: null, // turno creado al recibir la entrada, antes del resultado
   fuentes: [],
   ultimaRespuesta: '',
   consulta: { claude: 0, externo: 0, evitado: 0, costo: 0 },
@@ -166,21 +178,38 @@ function mostrarError(id, texto) {
 }
 const escapar = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Cada pregunta y su respuesta son un turno del hilo; nada se borra.
+function nuevoTurno(pregunta) {
+  const t = $('plantilla-turno').content.firstElementChild.cloneNode(true);
+  t.querySelector('.pregunta').textContent = pregunta;
+  t.querySelector('.respuesta').classList.add('cargando');
+  t._fuentes = [];
+  t.querySelector('.btn-continuar').addEventListener('click', () => continuar(t));
+  $('hilo').appendChild(t);
+  try { t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch { /* sin scroll */ }
+  return t;
+}
+
 // Markdown mínimo y seguro: escapa todo, luego negritas, código, citas [n] y párrafos.
-function pintarRespuesta(texto) {
+function pintarRespuesta(turno, texto, enFlujo = false) {
+  const fuentes = turno._fuentes || [];
   const html = escapar(texto)
     .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[(\d{1,2})\]/g, (m, n) => (estado.fuentes[n - 1] ? `<a class="cita" href="${escapar(estado.fuentes[n - 1].url)}" target="_blank" rel="noopener">[${n}]</a>` : m))
+    .replace(/\[(\d{1,2})\]/g, (m, n) => (fuentes[n - 1] ? `<a class="cita" href="${escapar(fuentes[n - 1].url)}" target="_blank" rel="noopener">[${n}]</a>` : m))
     .split(/\n{2,}/)
     .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
     .join('');
-  $('respuesta').innerHTML = html;
+  const el = turno.querySelector('.respuesta');
+  el.classList.remove('cargando');
+  el.classList.toggle('flujo', enFlujo);
+  el.innerHTML = html;
 }
 
-function pintarFuentes() {
-  $('bloque-fuentes').hidden = estado.fuentes.length === 0;
-  $('fuentes').innerHTML = estado.fuentes
+function pintarFuentes(turno, fuentes) {
+  turno._fuentes = fuentes;
+  turno.querySelector('.bloque-fuentes').hidden = fuentes.length === 0;
+  turno.querySelector('.fuentes').innerHTML = fuentes
     .map((f) => `<li><a href="${escapar(f.url)}" target="_blank" rel="noopener">${escapar(f.title || f.url)}</a></li>`)
     .join('');
 }
@@ -300,10 +329,11 @@ function sistema(maxPalabras, conFuentes) {
 
 // Muchos modelos gratuitos razonan por omisión y el razonamiento se comería max_tokens: se apaga.
 // Si el modelo exige razonar (400), se reintenta una vez con razonamiento oculto y margen de tokens.
-async function llamarChat(mensajes, conRazonamiento) {
+// La respuesta llega en streaming (SSE) y se pinta a medida que llega.
+async function llamarChat(mensajes, conRazonamiento, alTexto) {
   const p = estado.peticion;
-  const max = Math.round(p.max_palabras * 2.5);
-  const cuerpo = { model: p.modelo, messages: mensajes, usage: { include: true } };
+  const max = Math.max(700, Math.round(p.max_palabras * 4));
+  const cuerpo = { model: p.modelo, messages: mensajes, stream: true, usage: { include: true } };
   if (conRazonamiento) Object.assign(cuerpo, { max_tokens: max + 2048, reasoning: { exclude: true } });
   else Object.assign(cuerpo, { max_tokens: max, reasoning: { enabled: false } });
   const r = await fetch(`${OPENROUTER}/api/v1/chat/completions`, {
@@ -311,28 +341,51 @@ async function llamarChat(mensajes, conRazonamiento) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave()}`, 'X-Title': 'Research Academy Panel' },
     body: JSON.stringify(cuerpo),
   });
-  return { r, j: await r.json().catch(() => ({})) };
+  if (!r.ok) return { r, j: await r.json().catch(() => ({})) };
+  const lector = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', texto = '', usage = {}, id, finish;
+  for (;;) {
+    const { value, done } = await lector.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const linea = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (!linea.startsWith('data: ')) continue;
+      const d = linea.slice(6);
+      if (d === '[DONE]') continue;
+      let j;
+      try { j = JSON.parse(d); } catch { continue; }
+      if (j.error) throw new Error(j.error.message || 'error del modelo');
+      id = j.id || id;
+      const c = j.choices?.[0];
+      if (c?.delta?.content) { texto += c.delta.content; alTexto?.(texto); }
+      if (c?.finish_reason) finish = c.finish_reason;
+      if (j.usage) usage = j.usage;
+    }
+  }
+  return { r, texto: texto.trim(), usage, id, finish };
 }
 
-async function preguntarModelo(mensajes) {
-  let { r, j } = await llamarChat(mensajes, false);
-  if (r.status === 400) ({ r, j } = await llamarChat(mensajes, true));
-  if (r.status === 401) {
+async function preguntarModelo(mensajes, alTexto) {
+  let res = await llamarChat(mensajes, false, alTexto);
+  if (res.r.status === 400) res = await llamarChat(mensajes, true, alTexto);
+  if (res.r.status === 401) {
     guardado.borrar(CLAVE_LLAVE);
     estado.llave = null;
     $('conectar').hidden = false;
     throw new Error('OpenRouter rechazó la llave. Vuelve a conectar tu cuenta.');
   }
-  if (!r.ok || j.error) throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`);
-  const m = j.choices?.[0]?.message || {};
-  const texto = (m.content || '').trim();
-  return { texto, usage: j.usage || {}, id: j.id, finish: j.choices?.[0]?.finish_reason };
+  if (!res.r.ok || res.j?.error) throw new Error(res.j?.error?.message || `OpenRouter respondió ${res.r.status}`);
+  return res;
 }
 
-function pintarUso(u, id) {
+function pintarUso(turno, u, id) {
   const partes = [`entrada ${fmt(u.prompt_tokens || 0)}`, `salida ${fmt(u.completion_tokens || 0)}`, `costo $${(u.cost || 0).toFixed(4)}`];
   if (id) partes.push(`id ${id}`);
-  $('uso').textContent = partes.join(' · ');
+  turno.querySelector('.uso').textContent = partes.join(' · ');
 }
 
 async function ejecutar() {
@@ -345,6 +398,8 @@ async function ejecutar() {
   }
   estado.enCurso = true;
   mostrarError('error', '');
+  const turno = estado.turnoPendiente || nuevoTurno(p.pregunta);
+  estado.turnoPendiente = null;
   try {
     let usuario = p.pregunta;
     let evitadoBusqueda = 0;
@@ -352,7 +407,7 @@ async function ejecutar() {
       mostrarEstado('Buscando fuentes en la web…');
       const { fuentes, charsRecibidos } = await buscar(p.pregunta, p.consultas || [p.pregunta]);
       estado.fuentes = fuentes;
-      pintarFuentes();
+      pintarFuentes(turno, fuentes);
       // Lo que llegó de la búsqueda y no se mandó al modelo también es lectura que Claude se ahorró.
       const usados = fuentes.reduce((n, f) => n + f.extracto.length + (f.title || '').length + f.url.length, 0);
       evitadoBusqueda = Math.max(0, charsRecibidos - usados) / 3.8;
@@ -360,12 +415,15 @@ async function ejecutar() {
       usuario =
         `Pregunta: ${p.pregunta}\n\nFuentes:\n` +
         fuentes.map((f, i) => `[${i + 1}] ${f.title || ''} — ${f.url}\n${f.extracto}`).join('\n\n');
+    } else {
+      estado.fuentes = [];
     }
-    mostrarEstado(`Preguntando a ${p.modelo}…`);
+    mostrarEstado(`Redactando con ${p.modelo}…`);
     estado.mensajes = [{ role: 'system', content: sistema(p.max_palabras, p.modo === 'investigar') }, { role: 'user', content: usuario }];
-    const r = await preguntarModelo(estado.mensajes);
-    terminarRespuesta(r, evitadoBusqueda);
+    const r = await preguntarModelo(estado.mensajes, (t) => pintarRespuesta(turno, t, true));
+    terminarRespuesta(turno, r, evitadoBusqueda);
   } catch (e) {
+    turno.querySelector('.respuesta').classList.remove('cargando', 'flujo');
     mostrarError('error', 'No se pudo completar: ' + e.message);
   } finally {
     estado.enCurso = false;
@@ -373,34 +431,36 @@ async function ejecutar() {
   }
 }
 
-function terminarRespuesta(r, evitadoExtra = 0) {
-  const texto = r.texto || (r.finish === 'length' ? '(El modelo agotó el límite de tokens antes de responder. Sube max_palabras o usa otro modelo.)' : '(El modelo no devolvió texto.)');
+function terminarRespuesta(turno, r, evitadoExtra = 0) {
+  const texto = r.texto || (r.finish === 'length' ? '(El modelo agotó el límite de tokens antes de responder. Pulsa Continuar o usa otro modelo.)' : '(El modelo no devolvió texto.)');
   estado.mensajes.push({ role: 'assistant', content: r.texto });
   estado.ultimaRespuesta = r.texto;
-  pintarRespuesta(texto);
-  pintarUso(r.usage, r.id);
+  pintarRespuesta(turno, texto, false);
+  turno.querySelector('.cortada').hidden = r.finish !== 'length';
+  pintarUso(turno, r.usage, r.id);
   $('acciones').hidden = false;
   $('seguir').hidden = false;
   const externo = (r.usage.prompt_tokens || 0) + (r.usage.completion_tokens || 0);
   sumar({ externo, evitado: externo + evitadoExtra, costo: r.usage.cost || 0 });
 }
 
-async function seguir() {
-  const q = $('seguimiento').value.trim();
+// Pregunta de seguimiento al modelo externo, con el historial del hilo. No pasa por Claude.
+async function seguirCon(q, turno) {
   if (!q || estado.enCurso || !estado.peticion) return;
   if (!llave()) return void ($('conectar').hidden = false);
   estado.enCurso = true;
   $('btn-seguir').disabled = true;
   mostrarError('error', '');
-  mostrarEstado(`Preguntando a ${estado.peticion.modelo}…`);
-  $('pregunta').textContent = q;
+  mostrarEstado(`Redactando con ${estado.peticion.modelo}…`);
+  turno = turno || nuevoTurno(q);
+  turno._fuentes = estado.fuentes;
   try {
     estado.mensajes.push({ role: 'user', content: q });
-    const r = await preguntarModelo(estado.mensajes);
-    $('seguimiento').value = '';
-    terminarRespuesta(r);
+    const r = await preguntarModelo(estado.mensajes, (t) => pintarRespuesta(turno, t, true));
+    terminarRespuesta(turno, r);
   } catch (e) {
     estado.mensajes.pop();
+    turno.querySelector('.respuesta').classList.remove('cargando', 'flujo');
     mostrarError('error', 'No se pudo completar: ' + e.message);
   } finally {
     estado.enCurso = false;
@@ -409,8 +469,20 @@ async function seguir() {
   }
 }
 
+async function seguir() {
+  const q = $('seguimiento').value.trim();
+  if (!q) return;
+  $('seguimiento').value = '';
+  await seguirCon(q);
+}
+
+function continuar(turno) {
+  turno.querySelector('.cortada').hidden = true;
+  seguirCon('Continúa exactamente donde te quedaste, sin repetir nada de lo ya dicho.');
+}
+
 // ---------- Conexión con el host ----------
-const app = new App({ name: 'research-academy-panel', version: '0.1.0' });
+const app = new App({ name: 'research-academy-panel', version: '0.5.0' });
 
 function aplicarTema(ctx) {
   const t = ctx?.theme;
@@ -423,7 +495,7 @@ app.ontoolinput = (params) => {
   const a = params?.arguments || {};
   if (a.pregunta) {
     $('consulta').hidden = false;
-    $('pregunta').textContent = a.pregunta;
+    if (!estado.turnoPendiente) estado.turnoPendiente = nuevoTurno(a.pregunta);
     $('modelo').textContent = a.modelo || '';
     mostrarEstado('Esperando a Claude…');
   }
@@ -437,18 +509,15 @@ app.ontoolresult = async (result) => {
   sumar({ claude: (estado.entradaChars + estado.salidaChars) / 3.8 + 45 });
   if (result?.isError || !sc) {
     $('consulta').hidden = false;
+    if (estado.turnoPendiente) { estado.turnoPendiente.querySelector('.respuesta').classList.remove('cargando'); estado.turnoPendiente = null; }
     mostrarEstado('');
     mostrarError('error', (result?.content || []).map((c) => c.text).join(' ') || 'La herramienta devolvió un error.');
     return;
   }
   estado.peticion = sc;
-  estado.fuentes = [];
   estado.ultimaRespuesta = '';
-  pintarFuentes();
-  $('respuesta').innerHTML = '';
-  $('uso').textContent = '';
   $('consulta').hidden = false;
-  $('pregunta').textContent = sc.pregunta;
+  if (!estado.turnoPendiente) estado.turnoPendiente = nuevoTurno(sc.pregunta);
   $('modelo').textContent = sc.modelo;
   await ejecutar();
 };

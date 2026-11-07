@@ -130,6 +130,17 @@
       <label class="check">Tono <select id="tono"><option value="ejecutivo">ejecutivo</option><option value="academico">académico</option><option value="sencillo">sencillo</option></select></label>
       <button class="primario" id="btn-ppt">Generar PPT</button>
     </div>
+    <div id="word-controles" hidden>
+      <h3>Añadir a este Word</h3>
+      <textarea id="word-instruccion" placeholder="Qué sección añadir y de qué debe tratar. Ejemplo: una sección 'Marco legal' con el sueldo mínimo vigente y sus efectos"></textarea>
+      <div class="fila">
+        <label class="check"><input type="checkbox" id="word-buscar" checked> Investigar en la web primero (Parallel) y citar fuentes</label>
+        <label class="check">Insertar <select id="word-donde"><option value="final">al final</option></select></label>
+        <label class="check">Largo <select id="word-largo"><option value="200">corto (200 palabras)</option><option value="400" selected>medio (400)</option><option value="700">largo (700)</option></select></label>
+      </div>
+      <div class="fila"><button class="primario" id="btn-word-seccion">Añadir sección</button><button id="btn-word-refs">Añadir solo referencias (APA)</button></div>
+      <p class="nota">Se conserva el formato del documento; la sección nueva usa el estilo de título del propio archivo si existe. El archivo original no se modifica: se genera una copia.</p>
+    </div>
     <div class="estado" id="estado-ppt" hidden><span class="punto"></span><span id="estado-ppt-texto"></span></div>
     <div class="error" id="error-ppt" hidden></div>
     <p class="nota" id="resultado-ppt" hidden></p>
@@ -146,6 +157,7 @@
 <script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <script id="descubrir">
 // Descubrimiento determinista de un libro Excel/CSV ya leído con SheetJS. Sin modelo. Reutilizable en Node para pruebas.
 window.RA_descubrir = (function () {
@@ -270,6 +282,98 @@ window.RA_ppt = (function () {
   return { construir, serie };
 })();
 </script>
+<script id="docx">
+// Inserción de párrafos en un .docx conservando el resto: edita word/document.xml dentro del zip.
+window.RA_docx = (function () {
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Busca en styles.xml el styleId del título de nivel 1 y 2 (Heading1, Título1, etc.).
+  function estilosTitulo(stylesXml) {
+    const res = {};
+    const re = /<w:style\b[^>]*w:styleId="([^"]+)"[^>]*>([\s\S]*?)<\/w:style>/g;
+    let m;
+    while ((m = re.exec(stylesXml || ''))) {
+      const id = m[1], cuerpo = m[2];
+      const nombre = (cuerpo.match(/<w:name\b[^>]*w:val="([^"]+)"/) || [])[1] || '';
+      const n = nombre.toLowerCase();
+      if (/^(heading|título|titulo)\s*1$/.test(n)) res.h1 = id;
+      if (/^(heading|título|titulo)\s*2$/.test(n)) res.h2 = id;
+      if (/^(list paragraph|párrafo de lista|parrafo de lista)$/.test(n)) res.lista = id;
+    }
+    return res;
+  }
+  function parrafo(texto, opciones = {}) {
+    const pPr = [];
+    if (opciones.estilo) pPr.push(`<w:pStyle w:val="${esc(opciones.estilo)}"/>`);
+    if (opciones.sangria) pPr.push('<w:ind w:left="720" w:hanging="720"/>');
+    const rPr = [];
+    if (opciones.negrita) rPr.push('<w:b/>');
+    if (opciones.tamano) rPr.push(`<w:sz w:val="${opciones.tamano}"/>`);
+    const runs = String(texto).split('\n').map((linea, i) => `${i ? '<w:r><w:br/></w:r>' : ''}<w:r>${rPr.length ? `<w:rPr>${rPr.join('')}</w:rPr>` : ''}<w:t xml:space="preserve">${esc(linea)}</w:t></w:r>`).join('');
+    return `<w:p>${pPr.length ? `<w:pPr>${pPr.join('')}</w:pPr>` : ''}${runs}</w:p>`;
+  }
+  // bloques: [{tipo:'h1'|'h2'|'p'|'vineta'|'ref', texto}]
+  function xmlDeBloques(bloques, estilos) {
+    return bloques.map((b) => {
+      if (b.tipo === 'h1') return parrafo(b.texto, estilos.h1 ? { estilo: estilos.h1 } : { negrita: true, tamano: 32 });
+      if (b.tipo === 'h2') return parrafo(b.texto, estilos.h2 ? { estilo: estilos.h2 } : { negrita: true, tamano: 26 });
+      if (b.tipo === 'vineta') return parrafo('• ' + b.texto, estilos.lista ? { estilo: estilos.lista } : {});
+      if (b.tipo === 'ref') return parrafo(b.texto, { sangria: true });
+      return parrafo(b.texto);
+    }).join('');
+  }
+  // Convierte texto con markdown mínimo del modelo a bloques.
+  function bloquesDeTexto(titulo, texto) {
+    const bloques = [{ tipo: 'h1', texto: titulo }];
+    for (const linea of String(texto).split(/\n+/)) {
+      const l = linea.trim(); if (!l) continue;
+      if (/^#{1,2}\s/.test(l)) bloques.push({ tipo: 'h2', texto: l.replace(/^#+\s*/, '') });
+      else if (/^[-*•]\s/.test(l)) bloques.push({ tipo: 'vineta', texto: l.replace(/^[-*•]\s*/, '') });
+      else bloques.push({ tipo: 'p', texto: l.replace(/\*\*/g, '') });
+    }
+    return bloques;
+  }
+  // Títulos existentes del documento, para elegir dónde insertar.
+  function titulosDe(documentXml, estilos) {
+    const ids = [estilos.h1, estilos.h2].filter(Boolean);
+    const out = [];
+    const re = /<w:p\b[\s\S]*?<\/w:p>/g;
+    let m, i = 0;
+    while ((m = re.exec(documentXml))) {
+      const p = m[0];
+      const st = (p.match(/<w:pStyle\b[^>]*w:val="([^"]+)"/) || [])[1];
+      if (st && ids.includes(st)) { const t = (p.match(/<w:t\b[^>]*>([^<]*)<\/w:t>/g) || []).map((x) => x.replace(/<[^>]+>/g, '')).join('').trim(); if (t) out.push({ indice: i, texto: t.slice(0, 80), fin: m.index + p.length }); }
+      i++;
+    }
+    return out;
+  }
+  // Inserta el XML: al final (antes del sectPr final) o tras el título elegido, saltando el cuerpo de esa sección hasta el siguiente título del mismo nivel o superior.
+  function insertar(documentXml, xmlNuevo, donde, estilos) {
+    if (donde && donde !== 'final') {
+      const titulos = titulosDe(documentXml, estilos);
+      const t = titulos.find((x) => String(x.indice) === String(donde));
+      if (t) {
+        const siguiente = titulos.find((x) => x.indice > t.indice);
+        const pos = siguiente ? documentXml.lastIndexOf('<w:p', siguiente.fin - 1) : -1;
+        if (siguiente && pos > t.fin) return documentXml.slice(0, pos) + xmlNuevo + documentXml.slice(pos);
+      }
+    }
+    const sect = documentXml.lastIndexOf('<w:sectPr');
+    const cierre = documentXml.lastIndexOf('</w:body>');
+    const pos = sect > 0 && sect < cierre && documentXml.slice(sect, cierre).indexOf('</w:p>') < 0 ? sect : cierre;
+    return documentXml.slice(0, pos) + xmlNuevo + documentXml.slice(pos);
+  }
+  async function editar(JSZip, buffer, bloques, donde) {
+    const zip = await JSZip.loadAsync(buffer);
+    const doc = await zip.file('word/document.xml').async('string');
+    const styles = zip.file('word/styles.xml') ? await zip.file('word/styles.xml').async('string') : '';
+    const estilos = estilosTitulo(styles);
+    const nuevo = insertar(doc, xmlDeBloques(bloques, estilos), donde, estilos);
+    zip.file('word/document.xml', nuevo);
+    return zip;
+  }
+  return { estilosTitulo, titulosDe, bloquesDeTexto, xmlDeBloques, insertar, editar };
+})();
+</script>
 <script type="module">
 import { App } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js';
 
@@ -359,6 +463,7 @@ async function pintarCuota() {
 async function leerArchivo(f) {
   const nombre = f.name, ext = nombre.toLowerCase().split('.').pop();
   const buf = await f.arrayBuffer();
+  estado.bufOriginal = buf;
   sumar({ evitado: buf.byteLength / 3.8 });
   if (['xlsx', 'xls', 'xlsm', 'csv', 'tsv'].includes(ext)) {
     const wb = XLSX.read(buf, { type: 'array', cellFormula: true, cellDates: true, cellNF: false });
@@ -428,6 +533,7 @@ async function analizar() {
     $('uso').textContent = `entrada ${fmt(r.usage.prompt_tokens || 0)} · salida ${fmt(r.usage.completion_tokens || 0)} · costo $${(r.usage.cost || 0).toFixed(4)}`;
     armarContexto();
     $('accion-seccion').hidden = false;
+    if (estado.archivo.nombre.toLowerCase().endsWith('.docx')) await prepararWord(); else $('word-controles').hidden = true;
     await guardarEnCerebro();
   } catch (e) { $('respuesta').classList.remove('flujo'); mostrarError('error', 'No se pudo analizar: ' + e.message); }
   finally { estado.enCurso = false; mostrarEstado(''); }
@@ -503,6 +609,94 @@ async function anotarEnCerebro(linea) {
   } catch {}
 }
 
+// ---- Word: añadir sección o referencias conservando el formato ----
+const PARALLEL = 'https://mcp.parallel.ai/mcp';
+async function buscarWeb(objetivo, consultas) {
+  const r = await fetch(PARALLEL, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'web_search', arguments: { objective: objetivo, search_queries: consultas } } }) });
+  if (!r.ok) throw new Error(`la búsqueda respondió ${r.status}`);
+  const crudo = await r.text(); const linea = crudo.split('\n').find((l) => l.startsWith('data: '));
+  const rpc = JSON.parse(linea ? linea.slice(6) : crudo); if (rpc.error) throw new Error(rpc.error.message);
+  const datos = JSON.parse(rpc.result?.content?.[0]?.text || '{}');
+  sumar({ evitado: crudo.length / 3.8 });
+  return (datos.results || []).slice(0, 5).map((x) => ({ url: x.url, title: x.title || '', extracto: (x.excerpts || []).join(' … ').slice(0, 900) }));
+}
+function consultasDe(texto) {
+  const palabras = String(texto).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 3 && !['sobre', 'para', 'como', 'esta', 'este', 'seccion', 'sección', 'añadir', 'agrega', 'agregar', 'quiero', 'texto', 'documento'].includes(w));
+  const a = palabras.slice(0, 5).join(' '), b = palabras.slice(2, 7).join(' ');
+  return [a, b].filter((q, i, arr) => q.split(' ').length >= 3 && arr.indexOf(q) === i).slice(0, 2);
+}
+function pintarTitulosWord() {
+  const sel = $('word-donde'); sel.innerHTML = '<option value="final">al final</option>';
+  const t = estado.archivo?.titulosDoc || [];
+  for (const x of t) { const o = document.createElement('option'); o.value = String(x.indice); o.textContent = `después de «${x.texto}»`; sel.appendChild(o); }
+}
+async function prepararWord() {
+  if (!window.JSZip || !estado.bufOriginal) return;
+  try {
+    const zip = await JSZip.loadAsync(estado.bufOriginal);
+    const doc = await zip.file('word/document.xml').async('string');
+    const styles = zip.file('word/styles.xml') ? await zip.file('word/styles.xml').async('string') : '';
+    estado.archivo.titulosDoc = RA_docx.titulosDe(doc, RA_docx.estilosTitulo(styles));
+  } catch { estado.archivo.titulosDoc = []; }
+  pintarTitulosWord();
+  $('word-instruccion').value = estado.peticion.instruccion || '';
+  $('word-controles').hidden = false;
+}
+async function redactarSeccion(instruccion, fuentes, largo) {
+  const ctx = (estado.archivo.texto || '').slice(0, 6000);
+  const sistema = `Escribes una sección nueva para un documento Word existente, en español, ${largo} palabras como máximo. Devuelve primero una línea "TITULO: <título corto de la sección>" y luego el cuerpo en párrafos; subtítulos con "## " y viñetas con "- " si ayudan. Mantén el tono del documento. ${fuentes.length ? 'Usa SOLO las fuentes numeradas, cita con [n] y no inventes datos.' : 'No inventes cifras; si faltan, dilo.'}`;
+  const usuario = `Instrucción: ${instruccion}\n\nInicio del documento (contexto de tono y tema):\n${ctx}${fuentes.length ? `\n\nFuentes:\n${fuentes.map((f, i) => `[${i + 1}] ${f.title} — ${f.url}\n${f.extracto}`).join('\n\n')}` : ''}`;
+  const r = await llamarChat([{ role: 'system', content: sistema }, { role: 'user', content: usuario }], null, Math.round(largo * 3) + 300);
+  const titulo = (r.texto.match(/^TITULO:\s*(.+)$/m) || [])[1]?.trim() || 'Sección añadida';
+  const cuerpo = r.texto.replace(/^TITULO:.*$/m, '').trim();
+  return { titulo, cuerpo };
+}
+async function referenciasApa(fuentes) {
+  if (!fuentes.length) return [];
+  const sistema = 'Devuelve SOLO una lista, una referencia por línea, en formato APA 7 en español, a partir de las fuentes dadas (autor u organización si se infiere del dominio o título, año si aparece, título, sitio, URL). Sin numeración ni texto extra. Año desconocido: (s. f.).';
+  const usuario = fuentes.map((f, i) => `[${i + 1}] ${f.title} — ${f.url}\n${(f.extracto || '').slice(0, 300)}`).join('\n\n');
+  const r = await llamarChat([{ role: 'system', content: sistema }, { role: 'user', content: usuario }], null, 900);
+  return r.texto.split('\n').map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter((l) => l.length > 20);
+}
+async function generarWord(soloReferencias) {
+  if (!estado.archivo || estado.archivo.nombre.toLowerCase().split('.').pop() !== 'docx') return mostrarError('error-ppt', 'Esta acción necesita un archivo .docx.');
+  if (estado.enCurso) return; if (!llave()) { $('conectar').hidden = false; return; }
+  if (!window.JSZip) return mostrarError('error-ppt', 'La librería de Word no cargó. Recarga el panel.');
+  const instruccion = $('word-instruccion').value.trim() || estado.peticion.instruccion || 'Añadir una sección de conclusiones';
+  estado.enCurso = true; mostrarError('error-ppt', ''); $('resultado-ppt').hidden = true; $('btn-word-seccion').disabled = true; $('btn-word-refs').disabled = true;
+  try {
+    let fuentes = [];
+    if ($('word-buscar').checked || soloReferencias) {
+      estadoPpt('Buscando fuentes en la web…');
+      const consultas = consultasDe(instruccion); if (consultas.length) fuentes = await buscarWeb(instruccion, consultas);
+      if (!fuentes.length && soloReferencias) throw new Error('no se encontraron fuentes; escribe una instrucción más específica');
+    }
+    let bloques = [];
+    if (!soloReferencias) {
+      estadoPpt('Redactando la sección…');
+      const { titulo, cuerpo } = await redactarSeccion(instruccion, fuentes, Number($('word-largo').value) || 400);
+      bloques = RA_docx.bloquesDeTexto(titulo, cuerpo);
+    }
+    if (fuentes.length) {
+      estadoPpt('Armando referencias en APA…');
+      const refs = await referenciasApa(fuentes);
+      if (refs.length) bloques.push({ tipo: 'h1', texto: 'Referencias' }, ...refs.map((t) => ({ tipo: 'ref', texto: t })));
+    }
+    if (!bloques.length) throw new Error('no hay nada que insertar');
+    estadoPpt('Insertando en el documento…');
+    const zip = await RA_docx.editar(window.JSZip, estado.bufOriginal, bloques, $('word-donde').value);
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', compression: 'DEFLATE' });
+    const nombre = `${estado.archivo.nombre.replace(/\.docx$/i, '')}-${soloReferencias ? 'referencias' : 'ampliado'}.docx`;
+    estadoPpt('Subiendo para la descarga…');
+    const s = await subirArchivo(nombre, blob);
+    $('resultado-ppt').hidden = false;
+    $('resultado-ppt').innerHTML = `Listo: <a class="enlace" href="${escapar(s.url)}" target="_blank" rel="noopener">${escapar(s.nombre)}</a> (${fmt(s.bytes / 1024)} KB, ${bloques.length} párrafos nuevos${fuentes.length ? `, ${fuentes.length} fuentes` : ''}, disponible 24 h). Revisa la redacción antes de entregar.`;
+    try { if (app.openLink) await app.openLink({ url: s.url }); } catch {}
+    await anotarEnCerebro(`Word ${soloReferencias ? 'con referencias' : 'ampliado'}: ${s.url}`);
+  } catch (e) { mostrarError('error-ppt', 'No se pudo generar: ' + e.message); }
+  finally { estado.enCurso = false; $('btn-word-seccion').disabled = false; $('btn-word-refs').disabled = false; estadoPpt(''); }
+}
+
 // ---- Cerebro: misma frase y mismo almacén que el panel Research ----
 const sha256hex = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t).trim().normalize('NFC'))))].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function guardarEnCerebro() {
@@ -534,7 +728,7 @@ async function procesar(f) {
 }
 
 // ---- Host ----
-const app = new App({ name: 'research-academy-docs', version: '0.2.0' });
+const app = new App({ name: 'research-academy-docs', version: '0.3.0' });
 app.ontoolinput = (p) => { const a = p?.arguments || {}; estado.entradaChars = JSON.stringify(a).length; if (a.instruccion) $('instruccion').textContent = a.instruccion; if (a.accion) $('accion').value = a.accion; };
 app.ontoolresult = (r) => {
   const sc = r?.structuredContent || {}; estado.salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
@@ -555,6 +749,8 @@ $('btn-claude').addEventListener('click', enviarAClaude);
 $('btn-copiar').addEventListener('click', async () => { armarContexto(); try { await navigator.clipboard.writeText(estado.contexto); $('btn-copiar').textContent = 'Copiado'; } catch { $('btn-copiar').textContent = 'No se pudo copiar'; } setTimeout(() => ($('btn-copiar').textContent = 'Copiar contexto'), 1500); });
 $('btn-reanalizar').addEventListener('click', analizar);
 $('btn-ppt').addEventListener('click', generarPpt);
+$('btn-word-seccion').addEventListener('click', () => generarWord(false));
+$('btn-word-refs').addEventListener('click', () => generarWord(true));
 $('permiso').checked = (guardado.leer(CLAVE_PERMISO) ?? '1') === '1'; $('permiso').addEventListener('change', () => guardado.escribir(CLAVE_PERMISO, $('permiso').checked ? '1' : '0'));
 $('accion').addEventListener('change', () => { estado.peticion.accion = $('accion').value; });
 pintarMedidor();

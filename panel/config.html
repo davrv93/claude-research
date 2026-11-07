@@ -100,7 +100,7 @@ function pintarProveedores() {
     const k = P.leerLlave(id);
     const div = document.createElement('div'); div.className = 'prov';
     div.innerHTML = `<div class="cabp"><b>${escapar(p.nombre)}</b><span class="estado-prov" id="est-${id}">${k ? 'llave guardada ' + escapar(P.enmascarar(k)) : 'sin llave'}</span></div>
-      <div class="nota" style="margin:0">${escapar(p.gratis)}. Modelos: ${escapar(Object.values(p.modelos).join(', '))}. <a class="enlace" href="${escapar(p.ayuda)}" target="_blank" rel="noopener">obtener llave</a></div>
+      <div class="nota" style="margin:0">${escapar(p.gratis)}. El modelo se elige de la lista actual del proveedor (por defecto ${escapar(p.modelos.texto)}). <a class="enlace" href="${escapar(p.ayuda)}" target="_blank" rel="noopener">obtener llave</a></div>
       <div class="fila" style="margin-top:4px"><input type="password" id="k-${id}" placeholder="Pega la llave aquí" autocomplete="off" style="flex:1;min-width:200px"><button class="primario" data-g="${id}">Guardar</button><button data-p="${id}">Probar</button><button data-b="${id}">Borrar</button></div>`;
     cont.appendChild(div);
   }
@@ -110,7 +110,7 @@ $('proveedores').addEventListener('click', async (e) => {
   const id = b.dataset.g || b.dataset.p || b.dataset.b; const est = $('est-' + id);
   if (b.dataset.g) { const v = $('k-' + id).value.trim(); if (!v) return; P.guardarLlave(id, v); $('k-' + id).value = ''; est.textContent = 'llave guardada ' + P.enmascarar(v); pintarOrdenes(); }
   if (b.dataset.b) { P.borrarLlave(id); est.textContent = 'sin llave'; pintarOrdenes(); }
-  if (b.dataset.p) { est.textContent = 'probando…'; const r = await P.probar(id); est.innerHTML = r.ok ? `<span class="ok">responde</span> ${escapar(r.modelo)} en ${r.ms} ms` : `<span class="mal">falla</span>: ${escapar(r.error)}`; }
+  if (b.dataset.p) { est.textContent = 'probando…'; const ids = await P.listarModelos(id, true); const r = await P.probar(id); est.innerHTML = r.ok ? `<span class="ok">responde</span> ${escapar(r.modelo)} en ${r.ms} ms · ${ids.length} modelos disponibles` : `<span class="mal">falla</span>: ${escapar(r.error)}${ids.length ? ` · modelos vistos: ${escapar(ids.slice(0, 6).join(', '))}` : ''}`; }
 });
 
 // ---- Orden por tarea ----

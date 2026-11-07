@@ -3,7 +3,7 @@ name: research-academy
 description: Investigar, resumir archivos, planificar proyectos, crear Artifacts y explicar conceptos en Claude Pro con respuestas cortas y consumo visible. Usar cuando el alumno escriba research-academy o pida investigar, fuentes, resumen, proyecto o app.
 ---
 
-# Research Academy 0.9
+# Research Academy 0.9.1
 
 ## Salida (siempre)
 
@@ -14,6 +14,8 @@ description: Investigar, resumir archivos, planificar proyectos, crear Artifacts
   `Consumo: <directo | panel delegar | panel investigar | panel mapa | panel documentos | cerebro_buscar | busqueda web nativa (evitar)> · externo <ver panel | n/d> · Claude: ver Configuracion > Uso`
 
 ## Ruta (una llamada como maximo)
+
+Si el mensaje empieza con "research-academy", usa SIEMPRE una herramienta del panel segun la tabla, aunque la tarea parezca facil; no respondas directo salvo saludo, traduccion o calculo de una linea. Codigo pedido con research-academy va a `codigo`, nunca lo escribas tu.
 
 Si el conector `research-academy-panel` esta disponible, es obligatorio: actualidad va SIEMPRE por `investigar` y conceptos por `delegar`, antes de escribir cualquier respuesta. No uses la busqueda web de Claude ni Parallel en su lugar. Solo si el conector no esta, responde directo y dilo.
 

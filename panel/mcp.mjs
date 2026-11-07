@@ -12,7 +12,7 @@ import { z } from 'zod';
 const AQUI = dirname(fileURLToPath(import.meta.url));
 export const PANEL_URI = 'ui://research-academy/panel';
 export const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
-export const VERSION = '0.5.0';
+export const VERSION = '0.5.1';
 
 // Metadatos de la interfaz: a qué dominios puede conectarse el panel y de dónde carga módulos.
 export function metaUi() {

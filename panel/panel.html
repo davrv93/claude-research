@@ -482,7 +482,7 @@ function continuar(turno) {
 }
 
 // ---------- Conexión con el host ----------
-const app = new App({ name: 'research-academy-panel', version: '0.5.0' });
+const app = new App({ name: 'research-academy-panel', version: '0.5.1' });
 
 function aplicarTema(ctx) {
   const t = ctx?.theme;
@@ -543,18 +543,26 @@ $('btn-copiar').addEventListener('click', async () => {
 $('btn-pasar').addEventListener('click', async () => {
   const nota = $('nota-pasar');
   nota.hidden = false;
-  if (!app.updateModelContext) {
-    nota.textContent = 'Este host no permite pasar texto a Claude desde el panel. Usa «Copiar».';
-    return;
-  }
   const fuentes = estado.fuentes.map((f, i) => `[${i + 1}] ${f.title || ''} ${f.url}`).join('\n');
-  const texto = `Respuesta de ${estado.peticion?.modelo} mostrada en el panel:\n\n${estado.ultimaRespuesta}${fuentes ? `\n\nFuentes:\n${fuentes}` : ''}`;
+  const texto = `Respuesta de ${estado.peticion?.modelo} mostrada en el panel Research Academy:\n\n${estado.ultimaRespuesta}${fuentes ? `\n\nFuentes:\n${fuentes}` : ''}`;
+  const caps = app.getHostCapabilities?.() || {};
   try {
-    await app.updateModelContext({ content: [{ type: 'text', text: texto }] });
+    // Prioridad: mensaje al chat (Claude lo lee en el acto y responde). Si el host no lo permite, contexto del modelo; si no, copiar.
+    if (caps.message && app.sendMessage) {
+      await app.sendMessage({ role: 'user', content: [{ type: 'text', text: texto }] });
+      nota.textContent = 'Enviado al chat como mensaje tuyo. Claude lo lee ahora; esto sí gasta tokens de Claude.';
+    } else if (caps.updateModelContext && app.updateModelContext) {
+      await app.updateModelContext({ content: [{ type: 'text', text: texto }] });
+      nota.textContent = 'Añadido al contexto de Claude para tu próximo mensaje. Escríbele algo para que lo use; esto sí gasta tokens de Claude.';
+    } else {
+      await navigator.clipboard.writeText(texto);
+      nota.textContent = 'Este host no permite enviar texto a Claude desde el panel. Copiado al portapapeles: pégalo en el chat.';
+      sumar({ claude: 0 });
+      return;
+    }
     sumar({ claude: texto.length / 3.8 });
-    nota.textContent = 'Enviado a Claude. Ojo: esto sí gasta tokens de Claude.';
   } catch (e) {
-    nota.textContent = 'No se pudo pasar a Claude: ' + e.message;
+    nota.textContent = 'No se pudo pasar a Claude: ' + e.message + '. Usa «Copiar» y pégalo en el chat.';
   }
 });
 $('btn-desconectar').addEventListener('click', () => {

@@ -11,7 +11,7 @@ description: Investigar, resumir archivos, planificar proyectos, crear Artifacts
 - Maximo 120 palabras de texto. Ampliar solo si el alumno lo pide. Codigo, tablas y Artifacts no cuentan.
 - Comparativas: 3 opciones, 1 frase cada una, 1 conclusion.
 - Resultados externos: sintesis propia en 3 puntos. Nunca copiar la respuesta ni volcar paginas.
-- Termina con una linea fija:
+- Termina SIEMPRE, en toda respuesta, con una linea fija:
   `Consumo: <directo | OpenRouter <modelo> | Parallel busqueda> · externo <entrada+salida tokens, costo | n/d> · Claude: ver Configuracion > Uso`
 
 ## Ruta (una llamada externa como maximo)
@@ -20,7 +20,7 @@ description: Investigar, resumir archivos, planificar proyectos, crear Artifacts
 |---|---|
 | Saludo, traduccion, calculo, texto creativo, archivos o datos del alumno, codigo, planes y proyectos | Directo en Claude |
 | Concepto estable: ciencia, matematicas, historia, gestion, contabilidad, programacion, arte | OpenRouter, modelo `:free`, pedir 100 palabras en espanol, `max_tokens` 300 |
-| Actualidad, precios, rankings, normativa, versiones, estadisticas | Parallel, UNA busqueda, 2 a 4 fuentes, citar URLs |
+| Actualidad, precios, rankings, normativa, versiones, estadisticas | Parallel `web_search`, UNA llamada con 2 a 4 `search_queries` de 3 a 6 palabras, citar URLs. Sin `web_fetch` salvo cita exacta. Nunca dar cifras de actualidad de memoria |
 | App, calculadora, tablero, formulario | Artifact, una version funcional, datos del alumno o ficticios |
 
 Sin OpenRouter despues de Parallel. Sin segunda busqueda salvo dato faltante. Si un MCP no esta conectado, dilo en una frase y responde directo.

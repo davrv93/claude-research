@@ -141,6 +141,13 @@
       <div class="fila"><button class="primario" id="btn-word-seccion">Añadir sección</button><button id="btn-word-refs">Añadir solo referencias (APA)</button></div>
       <p class="nota">Se conserva el formato del documento; la sección nueva usa el estilo de título del propio archivo si existe. El archivo original no se modifica: se genera una copia.</p>
     </div>
+    <div id="excel-controles" hidden>
+      <h3>Corregir este Excel</h3>
+      <p class="nota" style="margin-top:0">Revisión determinista de fórmulas (errores y rangos que no cubren todos los datos) y, si marcas la casilla, sugerencias del modelo gratuito. Se cambian solo fórmulas de celdas que ya existen; formatos, anchos y colores se conservan.</p>
+      <label class="check"><input type="checkbox" id="excel-modelo" checked> Pedir también sugerencias al modelo</label>
+      <div class="fila"><button id="btn-excel-revisar">Revisar</button><button class="primario" id="btn-excel-aplicar" disabled>Aplicar y descargar</button></div>
+      <div id="excel-cambios"></div>
+    </div>
     <div class="estado" id="estado-ppt" hidden><span class="punto"></span><span id="estado-ppt-texto"></span></div>
     <div class="error" id="error-ppt" hidden></div>
     <p class="nota" id="resultado-ppt" hidden></p>
@@ -202,7 +209,12 @@ window.RA_descubrir = (function () {
       if (cel.f) { formulas.push({ celda: dir, formula: cel.f.slice(0, 120), valor: cel.v ?? null }); for (const fn of String(cel.f).toUpperCase().match(/[A-Z][A-Z0-9.]*(?=\()/g) || []) funciones[fn] = (funciones[fn] || 0) + 1; }
       if (cel.t === 'e' || (typeof cel.v === 'string' && /^#(REF|DIV\/0|VALUE|NAME|N\/A|NUM)!?/.test(cel.v))) errores.push({ celda: dir, valor: String(cel.w || cel.v) });
     }
-    return { nombre, filas: datos.length, filasCalculadas, columnas, muestra: datos.slice(0, 300).map((f) => cab.map((_, i) => f[i])), cabecera: cab, formulas, funciones, errores };
+    const ultimaFilaPorColumna = {};
+    if (ref) for (let R = ref.s.r; R <= ref.e.r; R++) for (let Cc = ref.s.c; Cc <= ref.e.c; Cc++) {
+      const cel = ws[XLSX.utils.encode_cell({ r: R, c: Cc })];
+      if (cel && !cel.f && cel.v !== null && cel.v !== undefined && cel.v !== '' && R > inicio) ultimaFilaPorColumna[XLSX.utils.encode_col(Cc)] = R + 1;
+    }
+    return { nombre, ultimaFilaPorColumna, filas: datos.length, filasCalculadas, columnas, muestra: datos.slice(0, 300).map((f) => cab.map((_, i) => f[i])), cabecera: cab, formulas, funciones, errores };
   }
   function libro(wb, XLSX) { return { hojas: wb.SheetNames.map((n) => hoja(wb.Sheets[n], n, XLSX)) }; }
   const fmt = (n) => Math.round(n * 100) / 100;
@@ -374,6 +386,80 @@ window.RA_docx = (function () {
   return { estilosTitulo, titulosDe, bloquesDeTexto, xmlDeBloques, insertar, editar };
 })();
 </script>
+<script id="xlsx-fix">
+// Corrección de fórmulas en un .xlsx editando el XML de las hojas dentro del zip: conserva formatos.
+window.RA_xlsx = (function () {
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const colNum = (letras) => [...letras].reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0);
+  // Rangos de una sola columna que terminan antes del último dato de esa columna, en celdas de fórmula por debajo de los datos.
+  function rangosCortos(hoja) {
+    const cambios = [];
+    const ultimaFila = {};
+    hoja.muestraCompleta?.forEach?.(() => {});
+    for (const [col, fila] of Object.entries(hoja.ultimaFilaPorColumna || {})) ultimaFila[col] = fila;
+    for (const f of hoja.formulas) {
+      const m = f.formula.match(/^(SUM|SUMA|AVERAGE|PROMEDIO|COUNT|CONTAR|MAX|MIN)\(\$?([A-Z]+)\$?(\d+):\$?([A-Z]+)\$?(\d+)\)$/i);
+      if (!m) continue;
+      const [, fn, c1, r1, c2, r2] = m;
+      if (c1 !== c2) continue;
+      const filaCelda = Number(f.celda.replace(/^[A-Z]+/, ''));
+      const ultima = ultimaFila[c1];
+      if (!ultima || Number(r2) >= ultima || filaCelda <= ultima) continue;
+      cambios.push({ celda: f.celda, formula: `${fn.toUpperCase()}(${c1}${r1}:${c2}${ultima})`, motivo: `El rango termina en la fila ${r2} pero la columna ${c1} tiene datos hasta la fila ${ultima}.`, origen: 'panel' });
+    }
+    return cambios;
+  }
+  function formulaValida(f) { return typeof f === 'string' && f.length > 0 && f.length < 500 && !/^=/.test(f) && !/[<>]/.test(f); }
+  // Mapa nombre de hoja -> ruta xml dentro del zip.
+  async function rutasHojas(zip) {
+    const wb = await zip.file('xl/workbook.xml').async('string');
+    const rels = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+    const relMap = {};
+    for (const m of rels.matchAll(/<Relationship\b[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)) relMap[m[1]] = m[2];
+    for (const m of rels.matchAll(/<Relationship\b[^>]*Target="([^"]+)"[^>]*Id="([^"]+)"/g)) relMap[m[2]] = relMap[m[2]] || m[1];
+    const out = {};
+    for (const m of wb.matchAll(/<sheet\b[^>]*>/g)) {
+      const tag = m[0];
+      const nombre = (tag.match(/\bname="([^"]+)"/) || [])[1];
+      const rid = (tag.match(/\br:id="([^"]+)"/) || [])[1];
+      const destino = relMap[rid];
+      if (nombre && destino) out[nombre.replace(/&amp;/g, '&').replace(/&quot;/g, '"')] = destino.startsWith('/') ? destino.slice(1) : 'xl/' + destino;
+    }
+    return out;
+  }
+  // Reemplaza la fórmula de una celda existente; quita el valor cacheado para que Excel recalcule.
+  function reemplazarFormula(sheetXml, celda, formula) {
+    const re = new RegExp(`<c r="${celda}"([^>]*?)(/>|>([\\s\\S]*?)</c>)`);
+    const m = sheetXml.match(re);
+    if (!m) return null;
+    const attrs = m[1].replace(/\s+t="[^"]*"/, '');
+    return sheetXml.replace(m[0], `<c r="${celda}"${attrs}><f>${esc(formula)}</f></c>`);
+  }
+  async function corregir(JSZip, buffer, cambiosPorHoja) {
+    const zip = await JSZip.loadAsync(buffer);
+    const rutas = await rutasHojas(zip);
+    const aplicados = [], fallidos = [];
+    for (const [hoja, cambios] of Object.entries(cambiosPorHoja)) {
+      const ruta = rutas[hoja];
+      if (!ruta || !zip.file(ruta)) { fallidos.push(...cambios.map((c) => ({ ...c, hoja, error: 'hoja no encontrada' }))); continue; }
+      let xml = await zip.file(ruta).async('string');
+      for (const c of cambios) {
+        if (!formulaValida(c.formula)) { fallidos.push({ ...c, hoja, error: 'fórmula inválida' }); continue; }
+        const nuevo = reemplazarFormula(xml, c.celda, c.formula);
+        if (!nuevo) { fallidos.push({ ...c, hoja, error: 'la celda no existe' }); continue; }
+        xml = nuevo; aplicados.push({ ...c, hoja });
+      }
+      zip.file(ruta, xml);
+    }
+    let wb = await zip.file('xl/workbook.xml').async('string');
+    if (/<calcPr\b/.test(wb)) wb = wb.replace(/<calcPr\b([^>]*?)\/?>/, (m, a) => `<calcPr${a.replace(/\s+fullCalcOnLoad="[^"]*"/, '')} fullCalcOnLoad="1"/>`);
+    else wb = wb.replace('</workbook>', '<calcPr fullCalcOnLoad="1"/></workbook>');
+    zip.file('xl/workbook.xml', wb);
+    return { zip, aplicados, fallidos };
+  }
+  return { rangosCortos, formulaValida, rutasHojas, reemplazarFormula, corregir };
+})();
+</script>
 <script type="module">
 import { App } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js';
 
@@ -534,6 +620,7 @@ async function analizar() {
     armarContexto();
     $('accion-seccion').hidden = false;
     if (estado.archivo.nombre.toLowerCase().endsWith('.docx')) await prepararWord(); else $('word-controles').hidden = true;
+    $('excel-controles').hidden = !/\.(xlsx|xlsm)$/i.test(estado.archivo.nombre); $('excel-cambios').innerHTML = ''; estado.cambiosExcel = [];
     await guardarEnCerebro();
   } catch (e) { $('respuesta').classList.remove('flujo'); mostrarError('error', 'No se pudo analizar: ' + e.message); }
   finally { estado.enCurso = false; mostrarEstado(''); }
@@ -697,6 +784,66 @@ async function generarWord(soloReferencias) {
   finally { estado.enCurso = false; $('btn-word-seccion').disabled = false; $('btn-word-refs').disabled = false; estadoPpt(''); }
 }
 
+// ---- Excel: revisar y corregir fórmulas conservando el formato ----
+estado.cambiosExcel = [];
+async function sugerenciasModelo() {
+  const a = estado.archivo;
+  const resumenFormulas = a.desc.hojas.map((h) => `Hoja «${h.nombre}» (datos hasta fila ${Math.max(0, ...Object.values(h.ultimaFilaPorColumna || {}))}):\n` + h.formulas.slice(0, 120).map((f) => `${f.celda}: =${f.formula} → ${f.valor ?? ''}`).join('\n') + (h.errores.length ? `\nErrores: ${h.errores.map((e) => `${e.celda} ${e.valor}`).join(', ')}` : '')).join('\n\n');
+  const sistema = 'Revisas fórmulas de Excel. Devuelve SOLO un JSON: {"cambios":[{"hoja":"nombre","celda":"C6","formula":"SUM(C2:C19)","motivo":"una frase"}]}. Solo celdas que ya tienen fórmula o error. Fórmulas sin el signo igual, en inglés (SUM, AVERAGE, IF). Si no ves nada que corregir, devuelve {"cambios":[]}. No inventes celdas.';
+  const usuario = `Instrucción del alumno: ${estado.peticion.instruccion || 'corregir fórmulas'}\n\n${a.resumen}\n\n${resumenFormulas}`;
+  const r = await llamarChat([{ role: 'system', content: sistema }, { role: 'user', content: usuario }], null, 900);
+  const m = r.texto.match(/\{[\s\S]*\}/); if (!m) return [];
+  try { return (JSON.parse(m[0]).cambios || []).filter((c) => c.hoja && c.celda && RA_xlsx.formulaValida(c.formula)).slice(0, 40).map((c) => ({ ...c, origen: 'modelo' })); } catch { return []; }
+}
+function pintarCambiosExcel() {
+  const el = $('excel-cambios');
+  if (!estado.cambiosExcel.length) { el.innerHTML = '<p class="nota">Sin cambios propuestos.</p>'; $('btn-excel-aplicar').disabled = true; return; }
+  el.innerHTML = `<div class="tabla"><table><thead><tr><th></th><th>Hoja</th><th>Celda</th><th>Fórmula nueva</th><th>Motivo</th><th>Origen</th></tr></thead><tbody>${estado.cambiosExcel.map((c, i) => `<tr><td><input type="checkbox" class="cambio" data-i="${i}" checked></td><td>${escapar(c.hoja)}</td><td>${escapar(c.celda)}</td><td><code>=${escapar(c.formula)}</code></td><td>${escapar(c.motivo || '')}</td><td>${c.origen === 'panel' ? 'panel' : 'modelo'}</td></tr>`).join('')}</tbody></table></div>`;
+  $('btn-excel-aplicar').disabled = false;
+}
+async function revisarExcel() {
+  const a = estado.archivo; if (!a || a.tipo !== 'tabla' || estado.enCurso) return;
+  estado.enCurso = true; mostrarError('error-ppt', ''); $('btn-excel-revisar').disabled = true;
+  try {
+    const cambios = [];
+    for (const h of a.desc.hojas) for (const c of RA_xlsx.rangosCortos(h)) cambios.push({ ...c, hoja: h.nombre });
+    for (const h of a.desc.hojas) for (const e of h.errores) if (!cambios.find((c) => c.hoja === h.nombre && c.celda === e.celda)) { const f = h.formulas.find((x) => x.celda === e.celda); if (f) cambios.push({ hoja: h.nombre, celda: e.celda, formula: f.formula, motivo: `La celda da ${e.valor}; revisa referencias o divisiones por cero.`, origen: 'panel', soloAviso: true }); }
+    if ($('excel-modelo').checked) {
+      if (!llave()) { $('conectar').hidden = false; } else {
+        estadoPpt('Pidiendo sugerencias al modelo…');
+        for (const s of await sugerenciasModelo()) if (!cambios.find((c) => c.hoja === s.hoja && c.celda === s.celda && !c.soloAviso)) { const idx = cambios.findIndex((c) => c.hoja === s.hoja && c.celda === s.celda); if (idx >= 0) cambios[idx] = s; else cambios.push(s); }
+      }
+    }
+    estado.cambiosExcel = cambios.filter((c) => !c.soloAviso || c.origen === 'modelo');
+    const avisos = cambios.filter((c) => c.soloAviso);
+    pintarCambiosExcel();
+    if (avisos.length) $('excel-cambios').insertAdjacentHTML('beforeend', `<p class="nota" style="color:var(--bad)">Errores sin corrección automática: ${escapar(avisos.map((v) => `${v.hoja}!${v.celda} (${v.formula})`).join(', '))}. Marca «sugerencias al modelo» o corrígelos a mano.</p>`);
+  } catch (e) { mostrarError('error-ppt', 'No se pudo revisar: ' + e.message); }
+  finally { estado.enCurso = false; $('btn-excel-revisar').disabled = false; estadoPpt(''); }
+}
+async function aplicarExcel() {
+  if (!estado.bufOriginal || estado.enCurso) return;
+  if (!window.JSZip) return mostrarError('error-ppt', 'La librería de edición no cargó. Recarga el panel.');
+  const marcados = [...document.querySelectorAll('input.cambio:checked')].map((i) => estado.cambiosExcel[Number(i.dataset.i)]).filter(Boolean);
+  if (!marcados.length) return mostrarError('error-ppt', 'No hay cambios marcados.');
+  estado.enCurso = true; mostrarError('error-ppt', ''); $('btn-excel-aplicar').disabled = true;
+  try {
+    const porHoja = {}; for (const c of marcados) (porHoja[c.hoja] = porHoja[c.hoja] || []).push(c);
+    estadoPpt('Aplicando cambios…');
+    const { zip, aplicados, fallidos } = await RA_xlsx.corregir(window.JSZip, estado.bufOriginal, porHoja);
+    if (!aplicados.length) throw new Error('ningún cambio pudo aplicarse: ' + fallidos.map((f) => `${f.celda} ${f.error}`).join(', '));
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
+    const nombre = `${estado.archivo.nombre.replace(/\.[^.]+$/, '')}-corregido.xlsx`;
+    estadoPpt('Subiendo para la descarga…');
+    const s = await subirArchivo(nombre, blob);
+    $('resultado-ppt').hidden = false;
+    $('resultado-ppt').innerHTML = `Listo: <a class="enlace" href="${escapar(s.url)}" target="_blank" rel="noopener">${escapar(s.nombre)}</a> (${aplicados.length} fórmulas cambiadas${fallidos.length ? `, ${fallidos.length} no aplicadas` : ''}; Excel recalcula al abrir; disponible 24 h).`;
+    try { if (app.openLink) await app.openLink({ url: s.url }); } catch {}
+    await anotarEnCerebro(`Excel corregido (${aplicados.length} fórmulas): ${s.url}`);
+  } catch (e) { mostrarError('error-ppt', 'No se pudo aplicar: ' + e.message); }
+  finally { estado.enCurso = false; $('btn-excel-aplicar').disabled = false; estadoPpt(''); }
+}
+
 // ---- Cerebro: misma frase y mismo almacén que el panel Research ----
 const sha256hex = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t).trim().normalize('NFC'))))].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function guardarEnCerebro() {
@@ -728,7 +875,7 @@ async function procesar(f) {
 }
 
 // ---- Host ----
-const app = new App({ name: 'research-academy-docs', version: '0.3.0' });
+const app = new App({ name: 'research-academy-docs', version: '0.4.0' });
 app.ontoolinput = (p) => { const a = p?.arguments || {}; estado.entradaChars = JSON.stringify(a).length; if (a.instruccion) $('instruccion').textContent = a.instruccion; if (a.accion) $('accion').value = a.accion; };
 app.ontoolresult = (r) => {
   const sc = r?.structuredContent || {}; estado.salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
@@ -751,6 +898,8 @@ $('btn-reanalizar').addEventListener('click', analizar);
 $('btn-ppt').addEventListener('click', generarPpt);
 $('btn-word-seccion').addEventListener('click', () => generarWord(false));
 $('btn-word-refs').addEventListener('click', () => generarWord(true));
+$('btn-excel-revisar').addEventListener('click', revisarExcel);
+$('btn-excel-aplicar').addEventListener('click', aplicarExcel);
 $('permiso').checked = (guardado.leer(CLAVE_PERMISO) ?? '1') === '1'; $('permiso').addEventListener('change', () => guardado.escribir(CLAVE_PERMISO, $('permiso').checked ? '1' : '0'));
 $('accion').addEventListener('change', () => { estado.peticion.accion = $('accion').value; });
 pintarMedidor();

@@ -9,6 +9,13 @@ const HOST = process.env.HOST || '127.0.0.1';
 const allowedHosts = process.env.ALLOWED_HOSTS ? process.env.ALLOWED_HOSTS.split(',').map((h) => h.trim()) : undefined;
 const app = createMcpExpressApp({ host: HOST, ...(allowedHosts ? { allowedHosts } : {}) });
 
+// Algunos clientes mandan solo Accept: application/json; el SDK exige ambos tipos y responde 406.
+app.use('/mcp', (req, _res, next) => {
+  const a = req.headers.accept || '';
+  if (!a.includes('text/event-stream') || !a.includes('application/json')) req.headers.accept = 'application/json, text/event-stream';
+  next();
+});
+
 app.post('/mcp', async (req, res) => {
   const server = buildServer();
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });

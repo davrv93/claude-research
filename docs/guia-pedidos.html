@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Research Academy · Guía de pedidos</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm; }
+  :root { --navy: #1e2a4a; --teal: #1f7a4d; --gold: #e3b04b; --ink: #1d1c24; --muted: #5d5a6b; --line: #e3e1ee; --soft: #f4f3fa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 11pt/1.45 "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink); }
+  .portada { height: 262mm; background: var(--navy); color: #fff; padding: 22mm 18mm; display: flex; flex-direction: column; justify-content: space-between; border-radius: 6px; page-break-after: always; }
+  .portada .marca { font-size: 13pt; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+  .portada h1 { font-size: 40pt; line-height: 1.05; margin: 0 0 10mm; font-weight: 800; letter-spacing: -.01em; }
+  .portada p { font-size: 14pt; color: #d6dcea; max-width: 120mm; margin: 0 0 6mm; }
+  .portada .pie { font-size: 10.5pt; color: #b7c0d6; border-top: 1px solid #3a4a73; padding-top: 6mm; }
+  .portada .pasos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; margin-top: 8mm; }
+  .portada .paso { background: #28365e; border-radius: 6px; padding: 5mm; }
+  .portada .paso b { display: block; color: var(--gold); font-size: 18pt; margin-bottom: 2mm; }
+  .portada .paso span { font-size: 10.5pt; color: #e6eaf5; }
+  h2 { font-size: 16pt; color: var(--navy); margin: 0 0 3mm; padding-bottom: 2mm; border-bottom: 2px solid var(--gold); page-break-after: avoid; }
+  .seccion { margin-bottom: 8mm; }
+  .seccion .nota { color: var(--muted); font-size: 9.5pt; margin: 0 0 3mm; }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2.5mm 5mm; }
+  ol.una { grid-template-columns: 1fr; }
+  li { display: grid; grid-template-columns: 8mm 1fr; gap: 2mm; align-items: start; background: var(--soft); border: 1px solid var(--line); border-radius: 5px; padding: 2.5mm 3mm; page-break-inside: avoid; }
+  li .n { font-weight: 800; color: var(--teal); font-size: 10pt; padding-top: .6mm; }
+  li code { font: 9.6pt/1.4 "SF Mono", Menlo, Consolas, monospace; color: var(--ink); white-space: normal; word-break: break-word; }
+  li small { grid-column: 2; display: block; color: var(--muted); font-size: 8.8pt; margin-top: 0; }
+  .cabecera { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6mm; font-size: 9pt; color: var(--muted); }
+  .cabecera b { color: var(--navy); font-size: 10pt; letter-spacing: .08em; text-transform: uppercase; }
+  .regla { background: #fff8e6; border-left: 4px solid var(--gold); padding: 3mm 4mm; border-radius: 4px; margin: 0 0 6mm; font-size: 10pt; }
+  .regla b { color: var(--navy); }
+  .cierre { margin-top: 6mm; padding: 5mm; background: var(--soft); border-radius: 6px; font-size: 10pt; }
+  .cierre h3 { margin: 0 0 2mm; color: var(--navy); font-size: 11.5pt; }
+  .cierre table { width: 100%; border-collapse: collapse; font-size: 9.6pt; }
+  .cierre th, .cierre td { text-align: left; padding: 1.6mm 2mm; border-bottom: 1px solid var(--line); }
+  .cierre th { color: var(--muted); font-weight: 700; font-size: 8.8pt; text-transform: uppercase; letter-spacing: .05em; }
+</style>
+</head>
+<body>
+
+<section class="portada">
+  <div>
+    <div class="marca">JMD Learning · Research Academy</div>
+    <h1>43 pedidos listos para copiar</h1>
+    <p>Lo que puedes pedirle a Claude con el kit, agrupado por lo que quieres hacer: investigar, trabajar tus archivos, programar, modelar en 3D y medir cuánto gastas.</p>
+    <div class="pasos">
+      <div class="paso"><b>1</b><span>Escribe <strong>/research-academy</strong> y elige la skill del menú.</span></div>
+      <div class="paso"><b>2</b><span>Pega el pedido. Si es un archivo, suéltalo en el panel, no en el chat.</span></div>
+      <div class="paso"><b>3</b><span>Lee el resultado en el panel. Claude solo dice "Listo".</span></div>
+    </div>
+  </div>
+  <div class="pie">Taller "IA para todos" · domingos 15, 22 y 29 de noviembre de 2026 · Guía v1 · Archivos de práctica: prueba-informe-bodegas.pdf y prueba-ventas-bodega.xlsx</div>
+</section>
+
+<div class="cabecera"><b>Guía de pedidos</b><span>Primero /research-academy, luego el pedido</span></div>
+
+<div class="regla"><b>Regla de oro.</b> Lo que entra al panel no gasta tu cuota de Claude. Lo que entra al chat, sí. Pon tus llaves una sola vez con <code>configurar</code>; nunca las pegues en el chat.</div>
+
+<div class="seccion">
+  <h2>Investigar y explicar</h2>
+  <p class="nota">Actualidad va a la web con fuentes; conceptos van a un modelo gratuito.</p>
+  <ol>
+    <li><span class="n">1</span><code>investiga: cuál es el sueldo mínimo vigente en Perú</code></li>
+    <li><span class="n">2</span><code>investiga: precio del kilo de pollo en Lima esta semana</code></li>
+    <li><span class="n">3</span><code>¿cuáles son las 3 plataformas de ecommerce más usadas en Perú?</code></li>
+    <li><span class="n">4</span><code>explícame qué es el IGV con un ejemplo de bodega</code></li>
+    <li><span class="n">5</span><code>¿qué es la matriz FODA y cuándo conviene usarla?</code></li>
+    <li><span class="n">6</span><code>explícame en 100 palabras cómo funciona un préstamo con cuota fija</code></li>
+  </ol>
+</div>
+
+<div class="seccion">
+  <h2>Trabajar con tus archivos</h2>
+  <p class="nota">Suelta el Excel, CSV, PDF, Word, foto o audio en el panel Documentos. El archivo nunca pasa por Claude.</p>
+  <ol>
+    <li><span class="n">7</span><code>quiero un ppt resumen de este pdf</code><small>Cifras verificadas contra el documento, gráficos y tarjetas</small></li>
+    <li><span class="n">8</span><code>resume este pdf en 5 puntos</code></li>
+    <li><span class="n">9</span><code>corrige las fórmulas de este excel</code><small>Detecta totales con rango corto y celdas con error</small></li>
+    <li><span class="n">10</span><code>limpia los datos de este excel</code><small>Espacios, mayúsculas, fechas, teléfonos, montos, duplicados</small></li>
+    <li><span class="n">11</span><code>hazme un gráfico de ventas por vendedor de este excel</code><small>PNG listo para WhatsApp</small></li>
+    <li><span class="n">12</span><code>compara este excel con el del mes pasado</code></li>
+    <li><span class="n">13</span><code>arma mensajes de WhatsApp para cada cliente de esta lista</code></li>
+    <li><span class="n">14</span><code>añade a este word una sección sobre el sueldo mínimo vigente con fuentes</code></li>
+    <li><span class="n">15</span><code>añade las referencias en APA a este word</code></li>
+    <li><span class="n">16</span><code>convierte este pdf a word</code></li>
+    <li><span class="n">17</span><code>hazme fichas de estudio y un examen de práctica de este pdf</code></li>
+    <li><span class="n">18</span><code>revisa si este trabajo tiene frases copiadas de internet</code></li>
+    <li><span class="n">19</span><code>pasa esta foto de la boleta a excel</code></li>
+    <li><span class="n">20</span><code>escribe un texto para Instagram con esta foto de mi producto</code></li>
+    <li><span class="n">21</span><code>transcribe este audio de la clase y hazme un resumen</code></li>
+  </ol>
+</div>
+
+<div class="seccion">
+  <h2>Crear desde cero</h2>
+  <ol>
+    <li><span class="n">22</span><code>hazme una plantilla de excel de inventario con stock mínimo y aviso de reposición</code></li>
+    <li><span class="n">23</span><code>hazme una plantilla de excel de caja diaria con saldo acumulado</code></li>
+    <li><span class="n">24</span><code>redacta una carta de solicitud de crédito para mi bodega</code></li>
+    <li><span class="n">25</span><code>redacta un informe de ventas del mes con [datos entre corchetes para completar]</code></li>
+  </ol>
+</div>
+
+<div class="seccion">
+  <h2>Programar</h2>
+  <p class="nota">Pega el código o el error en el panel Código. Vista previa de HTML y ejecución de JavaScript incluidas.</p>
+  <ol>
+    <li><span class="n">26</span><code>escribe en javascript una función que valide un DNI peruano</code></li>
+    <li><span class="n">27</span><code>corrige este error de python: ZeroDivisionError en promedio([])</code></li>
+    <li><span class="n">28</span><code>explícame qué hace este código</code></li>
+    <li><span class="n">29</span><code>escribe tests para esta función</code></li>
+    <li><span class="n">30</span><code>convierte este código de python a javascript</code></li>
+  </ol>
+</div>
+
+<div class="seccion">
+  <h2>Objetos en 3D</h2>
+  <ol>
+    <li><span class="n">31</span><code>render3d una silla de madera con respaldo curvo</code></li>
+    <li><span class="n">32</span><code>render3d un dron de cuatro hélices estilo low poly</code></li>
+    <li><span class="n">33</span><code>render3d</code><small>y suelta una foto del producto en el panel; descarga PNG o GLB</small></li>
+  </ol>
+</div>
+
+<div class="seccion">
+  <h2>Calculadoras y citas</h2>
+  <ol>
+    <li><span class="n">34</span><code>calcula un préstamo de 10 mil soles a 24 % en 12 meses</code></li>
+    <li><span class="n">35</span><code>calcula el punto de equilibrio: fijos 3000, precio 10, costo variable 6</code></li>
+    <li><span class="n">36</span><code>dame la cita APA de https://gob.pe/...</code></li>
+  </ol>
+</div>
+
+<div class="seccion">
+  <h2>Tu cerebro y tu plan</h2>
+  <p class="nota">Todo lo que haces en el panel se guarda en tu cerebro con una frase clave. Sirve en la web y en la app de escritorio.</p>
+  <ol>
+    <li><span class="n">37</span><code>muéstrame mi mapa mental</code></li>
+    <li><span class="n">38</span><code>¿qué tengo guardado sobre sueldo mínimo? mi frase es ...</code><small>Solo tú, en tu panel</small></li>
+    <li><span class="n">39</span><code>dame el código para compartir mi cerebro con mi asesor</code></li>
+    <li><span class="n">40</span><code>/plan-trabajo quiero abrir una segunda bodega en 3 meses con 15 mil soles, asume lo que falte</code></li>
+    <li><span class="n">41</span><code>/plan-trabajo terminé la fase 1, la fase 2 está trabada por el proveedor; actualiza el estado</code></li>
+  </ol>
+</div>
+
+<div class="seccion">
+  <h2>Configurar y medir</h2>
+  <ol>
+    <li><span class="n">42</span><code>configurar</code><small>OpenRouter, Gemini, Groq, Mistral, Cerebras; frase del cerebro; permisos</small></li>
+    <li><span class="n">43</span><code>dime cuántos tokens usamos en esta sesión</code><small>Para comparar con y sin panel</small></li>
+  </ol>
+</div>
+
+<div class="cierre">
+  <h3>Qué pesa en tu cuota</h3>
+  <table>
+    <tr><th>Qué entra</th><th>Tokens aprox.</th><th>Lo paga</th></tr>
+    <tr><td>Base de claude.ai por mensaje (reglas y herramientas)</td><td>~107 000, en caché</td><td>Claude, barato</td></tr>
+    <tr><td>Un PDF de 20 páginas subido al chat</td><td>15 000 a 20 000 nuevos</td><td>Claude, caro</td></tr>
+    <tr><td>El mismo PDF soltado en el panel</td><td>0 para Claude</td><td>Modelo gratuito</td></tr>
+    <tr><td>Lo que Claude escribe</td><td>5 veces un token de entrada</td><td>Claude, lo más caro</td></tr>
+  </table>
+</div>
+
+</body>
+</html>

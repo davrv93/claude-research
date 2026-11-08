@@ -74,7 +74,7 @@
 
   <section class="caja" id="conectar" hidden>
     <h2>Conecta tu cuenta de OpenRouter</h2>
-    <p class="nota" style="margin-top:0">La llave se crea en tu navegador y se guarda solo en este panel. Solo modelos gratuitos (:free). También puedes hacerlo una sola vez en Configuración: pide a Claude «research-academy configurar».</p>
+    <p class="nota" style="margin-top:0">Falta un proveedor. Lo más rápido: pide a Claude «research-academy configurar» y pon tu llave de Gemini o Groq. O autoriza OpenRouter aquí (modelos gratuitos :free).</p>
     <div class="fila"><button class="primario" id="btn-autorizar">Autorizar en OpenRouter</button></div>
     <div id="paso-codigo" hidden>
       <p class="nota">Si no se abrió una pestaña, abre este enlace: <a class="enlace" id="enlace-auth" target="_blank" rel="noopener"></a></p>
@@ -242,6 +242,7 @@
 <script src="https://unpkg.com/docx@8.5.0/build/index.iife.js"></script>
 <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="__CEREBRO_URL__/docs-extra.js"></script>
+<script src="__CEREBRO_URL__/proveedores.js"></script>
 <script id="descubrir">
 // Descubrimiento determinista de un libro Excel/CSV ya leído con SheetJS. Sin modelo. Reutilizable en Node para pruebas.
 window.RA_descubrir = (function () {
@@ -588,7 +589,17 @@ async function canjear() {
   } catch (e) { mostrarError('error-auth', 'No se pudo conectar: ' + e.message); }
 }
 
-async function llamarChat(mensajes, alTexto, maxTokens = 1200) {
+const PROV = window.RA_prov;
+const hayProveedor = () => !!(PROV && PROV.configurados().length);
+async function llamarChat(mensajes, alTexto, maxTokens = 1200, tarea = 'texto') {
+  if (!hayProveedor()) throw Object.assign(new Error('Sin proveedor configurado. Pide a Claude «research-academy configurar».'), { sinLlave: true });
+  const r = await PROV.llamarConRespaldo({ tarea, mensajes, maxTokens, alTexto, alPaso: (p) => mostrarEstado(p) });
+  estado.peticion.modelo = `${r.proveedor} · ${r.modelo}`; $('modelo').textContent = estado.peticion.modelo;
+  const u = r.usage || {}; const ext = (u.prompt_tokens || 0) + (u.completion_tokens || 0) || Math.round((JSON.stringify(mensajes).length + r.texto.length) / 3.8);
+  sumar({ externo: ext, evitado: ext, costo: u.cost || 0 }); pintarCuota();
+  return { texto: r.texto, usage: u, finish: r.finish };
+}
+async function llamarChatViejo(mensajes, alTexto, maxTokens = 1200) {
   const cuerpo = { model: estado.peticion.modelo, messages: mensajes, stream: true, max_tokens: maxTokens, reasoning: { enabled: false }, usage: { include: true } };
   let r = await fetch(`${OPENROUTER}/api/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave()}`, 'X-Title': 'Research Academy Documentos' }, body: JSON.stringify(cuerpo) });
   if (r.status === 400) { Object.assign(cuerpo, { max_tokens: maxTokens + 2048, reasoning: { exclude: true } }); r = await fetch(`${OPENROUTER}/api/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave()}`, 'X-Title': 'Research Academy Documentos' }, body: JSON.stringify(cuerpo) }); }
@@ -628,8 +639,9 @@ async function pintarCuota() {
 async function leerArchivo(f) {
   const nombre = f.name, ext = nombre.toLowerCase().split('.').pop();
   const buf = await f.arrayBuffer();
-  estado.bufOriginal = buf;
-  sumar({ evitado: buf.byteLength / 3.8 });
+  const bytes = buf.byteLength;
+  estado.bufOriginal = buf.slice(0);
+  sumar({ evitado: bytes / 3.8 });
   if (['xlsx', 'xls', 'xlsm', 'csv', 'tsv'].includes(ext)) {
     const wb = XLSX.read(buf, { type: 'array', cellFormula: true, cellDates: true, cellNF: false });
     const d = RA_descubrir.libro(wb, XLSX);
@@ -646,7 +658,7 @@ async function leerArchivo(f) {
       texto += `\n\n[Página ${p}]\n` + tc.items.map((it) => it.str).join(' ').replace(/\s+/g, ' ');
     }
     const palabras = texto.split(/\s+/).filter(Boolean).length;
-    return { tipo: 'texto', nombre, bytes: buf.byteLength, paginas: doc.numPages, palabras, texto, resumen: `PDF de ${doc.numPages} páginas, ${palabras} palabras${palabras < 30 * doc.numPages ? ' (poco texto: puede ser escaneado; sin OCR)' : ''}.` };
+    return { tipo: 'texto', nombre, bytes, paginas: doc.numPages, palabras, texto, resumen: `PDF de ${doc.numPages} páginas, ${palabras} palabras${palabras < 30 * doc.numPages ? ' (poco texto: puede ser escaneado; sin OCR)' : ''}.` };
   }
   if (ext === 'docx') {
     const r = await mammoth.convertToHtml({ arrayBuffer: buf });
@@ -688,7 +700,7 @@ function sistemaAnalisis(a) {
 }
 async function analizar() {
   const a = estado.archivo; if (!a || estado.enCurso) return;
-  if (!llave()) { $('conectar').hidden = false; return; }
+  if (!hayProveedor()) { $('conectar').hidden = false; return; }
   if (!$('permiso').checked) { $('analisis').hidden = false; $('respuesta').textContent = 'Sin permiso para enviar el contenido al modelo. El descubrimiento de arriba sigue disponible y puedes enviarlo a Claude.'; estado.analisis = ''; armarContexto(); return; }
   estado.enCurso = true; mostrarError('error', ''); $('analisis').hidden = false; $('respuesta').textContent = ''; $('respuesta').classList.add('flujo');
   try {
@@ -704,7 +716,7 @@ async function analizar() {
       }
       cuerpo = `Instrucción del alumno: ${estado.peticion.instruccion || '(sin instrucción)'}\n\n${a.resumen}\n\nContenido:\n${texto}`;
     }
-    mostrarEstado(`Analizando con ${estado.peticion.modelo}…`);
+    mostrarEstado('Analizando…');
     const r = await llamarChat([{ role: 'system', content: sistemaAnalisis(a) }, { role: 'user', content: cuerpo }], (t) => { $('respuesta').textContent = t; });
     estado.analisis = r.texto; $('respuesta').textContent = r.texto; $('respuesta').classList.remove('flujo');
     $('uso').textContent = `entrada ${fmt(r.usage.prompt_tokens || 0)} · salida ${fmt(r.usage.completion_tokens || 0)} · costo $${(r.usage.cost || 0).toFixed(4)}`;
@@ -1086,15 +1098,12 @@ $('btn-originalidad').addEventListener('click', () => conEstado(async () => {
 // Imagen: OCR y redes (modelo con visión)
 async function llamarVision(instruccion, maxTokens = 2000) {
   const a = estado.archivo;
-  const cuerpo = { model: MODELO_VISION, messages: [{ role: 'user', content: [{ type: 'text', text: instruccion }, { type: 'image_url', image_url: { url: a.dataUrl } }] }], max_tokens: maxTokens, usage: { include: true } };
-  const r = await fetch(`${OPENROUTER}/api/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave()}`, 'X-Title': 'Research Academy Documentos' }, body: JSON.stringify(cuerpo) });
-  const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`);
-  const u = j.usage || {}; sumar({ externo: (u.prompt_tokens || 0) + (u.completion_tokens || 0), evitado: (u.prompt_tokens || 0) + (u.completion_tokens || 0), costo: u.cost || 0 }); pintarCuota();
-  return (j.choices?.[0]?.message?.content || '').trim();
+  const r = await llamarChat([{ role: 'user', content: [{ type: 'text', text: instruccion }, { type: 'image_url', image_url: { url: a.dataUrl } }] }], null, maxTokens, 'vision');
+  return r.texto;
 }
 $('btn-ocr').addEventListener('click', () => conEstado(async () => {
-  if (!llave()) { $('conectar').hidden = false; return; }
-  estadoPpt(`Leyendo la imagen con ${MODELO_VISION}…`);
+  if (!hayProveedor()) { $('conectar').hidden = false; return; }
+  estadoPpt('Leyendo la imagen…');
   const t = await llamarVision('Transcribe TODO el contenido tabular de la imagen como TSV (columnas separadas por tabulador, una fila por línea, primera línea con encabezados). Números sin símbolo de moneda. Si hay varias tablas, sepáralas con una línea vacía. Sin comentarios.');
   const filas = t.split('\n').filter((l) => l.trim()).map((l) => l.split('\t').map((c) => { const n = Number(String(c).replace(/[^\d.-]/g, '')); return c.trim() !== '' && Number.isFinite(n) && /^[\s\d.,\-S/$]+$/.test(c) ? n : c.trim(); }));
   if (filas.length < 2) throw new Error('no se reconoció una tabla; prueba con una foto más nítida');
@@ -1103,8 +1112,8 @@ $('btn-ocr').addEventListener('click', () => conEstado(async () => {
   await entregar(`${baseNombre()}-tabla.xlsx`, xlsxBlob(wb), 'Foto a Excel');
 }, 'btn-ocr'));
 $('btn-redes').addEventListener('click', () => conEstado(async () => {
-  if (!llave()) { $('conectar').hidden = false; return; }
-  estadoPpt(`Mirando la foto con ${MODELO_VISION}…`);
+  if (!hayProveedor()) { $('conectar').hidden = false; return; }
+  estadoPpt('Mirando la foto…');
   const t = await llamarVision(`Eres community manager. Mira la foto del producto o negocio y escribe en español: 1) un texto corto para Instagram (máximo 40 palabras, con 3 hashtags), 2) un texto largo para Facebook (máximo 120 palabras), 3) un mensaje de WhatsApp para clientes (máximo 50 palabras). Contexto del alumno: ${estado.peticion.instruccion || 'promocionar el producto'}. Separa con títulos ##.`, 900);
   $('img-salida').textContent = t;
   await guardarEnCerebroTexto(`Redes: ${estado.archivo.nombre}`, t, [t.split('\n').find((l) => l.trim() && !l.startsWith('#')) || 'textos para redes']);
@@ -1112,14 +1121,11 @@ $('btn-redes').addEventListener('click', () => conEstado(async () => {
 
 // Audio: transcripción con el modelo omni
 $('btn-transcribir').addEventListener('click', () => conEstado(async () => {
-  if (!llave()) { $('conectar').hidden = false; return; }
+  if (!hayProveedor()) { $('conectar').hidden = false; return; }
   const a = estado.archivo;
-  estadoPpt(`Transcribiendo con ${MODELO_AUDIO}… (puede tardar varios minutos)`);
-  const cuerpo = { model: MODELO_AUDIO, messages: [{ role: 'user', content: [{ type: 'text', text: `Transcribe el audio en español, con puntuación y párrafos por cambio de tema.${$('a-resumen').checked ? ' Al final, bajo el título "## Resumen", 5 viñetas con lo esencial y, bajo "## Acuerdos y tareas", las tareas con responsable si se mencionan.' : ''}` }, { type: 'input_audio', input_audio: { data: a.b64, format: a.formato === 'mp3' ? 'mp3' : a.formato === 'wav' ? 'wav' : a.formato } }] }], max_tokens: 6000, usage: { include: true } };
-  const r = await fetch(`${OPENROUTER}/api/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llave()}`, 'X-Title': 'Research Academy Documentos' }, body: JSON.stringify(cuerpo) });
-  const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error?.message || `OpenRouter respondió ${r.status}`);
-  const u = j.usage || {}; sumar({ externo: (u.prompt_tokens || 0) + (u.completion_tokens || 0), evitado: (u.prompt_tokens || 0) + (u.completion_tokens || 0), costo: u.cost || 0 }); pintarCuota();
-  const t = (j.choices?.[0]?.message?.content || '').trim(); if (!t) throw new Error('el modelo no devolvió texto');
+  estadoPpt('Transcribiendo… (puede tardar varios minutos)');
+  const rr = await llamarChat([{ role: 'user', content: [{ type: 'text', text: `Transcribe el audio en español, con puntuación y párrafos por cambio de tema.${$('a-resumen').checked ? ' Al final, bajo el título "## Resumen", 5 viñetas con lo esencial y, bajo "## Acuerdos y tareas", las tareas con responsable si se mencionan.' : ''}` }, { type: 'input_audio', input_audio: { data: a.b64, format: a.formato === 'mp3' ? 'mp3' : a.formato === 'wav' ? 'wav' : a.formato } }] }], null, 6000, 'audio');
+  const t = rr.texto; if (!t) throw new Error('el modelo no devolvió texto');
   $('a-salida').textContent = t.slice(0, 3000);
   const d = RA_extra.crearWord(window.docx, `Transcripción de ${baseNombre()}`, t, { pie: `Transcrito por ${MODELO_AUDIO}. Puede contener errores.` });
   await entregar(`${baseNombre()}-transcripcion.docx`, await window.docx.Packer.toBlob(d), 'Transcripción');
@@ -1128,7 +1134,7 @@ $('btn-transcribir').addEventListener('click', () => conEstado(async () => {
 
 // Crear desde cero (sin archivo)
 $('btn-crear').addEventListener('click', async () => {
-  if (estado.enCurso) return; if (!llave()) { $('conectar').hidden = false; return; }
+  if (estado.enCurso) return; if (!hayProveedor()) { $('conectar').hidden = false; return; }
   const tipo = $('crear-tipo').value, instruccion = $('crear-instruccion').value.trim() || estado.peticion.instruccion;
   if (!instruccion) return mostrarError('error-crear', 'Escribe qué debe contener.');
   estado.enCurso = true; mostrarError('error-crear', ''); $('resultado-crear').hidden = true; $('btn-crear').disabled = true;
@@ -1198,7 +1204,7 @@ async function procesar(f) {
 }
 
 // ---- Host ----
-const app = new App({ name: 'research-academy-docs', version: '0.5.0' });
+const app = new App({ name: 'research-academy-docs', version: '0.6.0' });
 app.ontoolinput = (p) => { const a = p?.arguments || {}; estado.entradaChars = JSON.stringify(a).length; if (a.instruccion) $('instruccion').textContent = a.instruccion; if (a.accion) $('accion').value = a.accion; };
 app.ontoolresult = (r) => {
   const sc = r?.structuredContent || {}; estado.salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
@@ -1227,7 +1233,7 @@ $('btn-excel-aplicar').addEventListener('click', aplicarExcel);
 $('permiso').checked = (guardado.leer(CLAVE_PERMISO) ?? '1') === '1'; $('permiso').addEventListener('change', () => guardado.escribir(CLAVE_PERMISO, $('permiso').checked ? '1' : '0'));
 $('accion').addEventListener('change', () => { estado.peticion.accion = $('accion').value; });
 pintarMedidor();
-if (!llave()) $('conectar').hidden = false; else pintarCuota();
+if (!hayProveedor()) $('conectar').hidden = false; else pintarCuota();
 try { await app.connect(); const c = app.getHostContext?.(); if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; } catch (e) { mostrarError('error', 'No se pudo conectar con el host: ' + e.message); }
 </script>
 </body>

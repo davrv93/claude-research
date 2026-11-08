@@ -139,6 +139,7 @@
     <div class="fila">
       <label class="check">Láminas <input id="n-laminas" type="number" min="3" max="12" value="6" style="width:4.5rem"></label>
       <label class="check">Tono <select id="tono"><option value="ejecutivo">ejecutivo</option><option value="academico">académico</option><option value="sencillo">sencillo</option></select></label>
+      <label class="check">Fondo <select id="ppt-fondo"><option value="oscuro">oscuro</option><option value="claro">claro</option></select></label>
       <button class="primario" id="btn-ppt">Generar PPT</button>
     </div>
     <div id="word-controles" hidden>
@@ -318,10 +319,24 @@ window.RA_descubrir = (function () {
 })();
 </script>
 <script id="ppt">
-// Construye la presentación con PptxGenJS a partir de un guion (JSON del modelo) y los datos del descubrimiento.
-// Las cifras de los gráficos se calculan aquí, nunca las inventa el modelo.
+// Construye la presentación con PptxGenJS. Las cifras de los gráficos salen del archivo (columnas) o del texto,
+// y en ese caso se verifica que cada número exista en el documento antes de dibujarlo. El modelo no inventa cifras.
 window.RA_ppt = (function () {
-  const num = (v) => (typeof v === 'number' ? v : Number(String(v ?? '').replace(/[^\d.-]/g, '')));
+  const num = (v) => {
+    if (typeof v === 'number') return v;
+    let t = String(v ?? '').replace(/\s/g, '').replace(/^S\/\.?/i, '').replace(/%$/, '').replace(/[^\d.,-]/g, '');
+    if (/,\d{3}(\.\d+)?$/.test(t) && !/,\d{1,2}$/.test(t)) t = t.replace(/,/g, ''); // 1,350 o 1,350.50 -> miles
+    t = t.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');             // 1.350 -> miles; 9,40 -> decimal
+    return Number(t);
+  };
+  const normalizar = (t) => String(t || '').replace(/ /g, ' ').replace(/(\d)[ .](?=\d{3}\b)/g, '$1').replace(/,/g, '.');
+  // ¿Aparece el número en el texto fuente? Acepta 1 350 / 1.350 / 1,350 / 1350 y decimales con coma o punto.
+  function cifraEnTexto(valor, fuente) {
+    const n = num(valor); if (!Number.isFinite(n)) return false;
+    const f = normalizar(fuente);
+    const cand = [String(n), n.toFixed(1), n.toFixed(2), String(Math.round(n))].map((x) => x.replace(/\.0+$/, ''));
+    return cand.some((c) => new RegExp(`(^|[^\\d.])${c.replace('.', '\\.')}(?![\\d])`).test(f));
+  }
   function serie(hoja, catCol, valCol, max = 8) {
     const ci = hoja.cabecera.indexOf(catCol), vi = hoja.cabecera.indexOf(valCol);
     if (ci < 0 || vi < 0) return null;
@@ -330,46 +345,89 @@ window.RA_ppt = (function () {
     const pares = [...acc].sort((a, b) => b[1] - a[1]).slice(0, max);
     return pares.length ? { labels: pares.map((p) => p[0].slice(0, 24)), values: pares.map((p) => Math.round(p[1] * 100) / 100) } : null;
   }
+  const TEMAS = {
+    ejecutivo: { fondo: 'FFFFFF', tinta: '172033', gris: '5B6475', acento: '1F4E79', acento2: '1F7A4D', suave: 'EEF3F9', paleta: ['1F4E79', '1F7A4D', 'C2622D', '5A49D6', '8A4A9E', 'D4A017', '2D9D8F', '777777'] },
+    academico: { fondo: 'FFFFFF', tinta: '1E1E2A', gris: '6A6A7A', acento: '2E3A59', acento2: '7B2D26', suave: 'F2F2F5', paleta: ['2E3A59', '7B2D26', 'A67C00', '4F6D7A', '8C6A5D', '3C5A3C', '6B5B95', '777777'] },
+    sencillo: { fondo: 'FFFFFF', tinta: '1B1B1B', gris: '666666', acento: '0E8C7F', acento2: 'E07A1F', suave: 'EAF6F4', paleta: ['0E8C7F', 'E07A1F', '5A49D6', '1F7A4D', 'D4A017', '8A4A9E', '2A7FBF', '777777'] },
+  };
+  const OSCURO = { ejecutivo: { fondo: '1E3A3A', tinta: 'FFFFFF', gris: 'C9D3D0', acento: 'E3B04B', acento2: '5FD398', suave: '2B4D49', paleta: ['E3B04B', '5FD398', '7CC0EC', 'F0A070', 'A99CFF', 'FFFFFF', 'C9D3D0', '8FB3AE'] },
+    academico: { fondo: '1C2333', tinta: 'FFFFFF', gris: 'B8C0D0', acento: 'F2C14E', acento2: '8FB8FF', suave: '2A3448', paleta: ['F2C14E', '8FB8FF', '5FD398', 'F0A070', 'A99CFF', 'FFFFFF', 'B8C0D0', '7A8AA5'] },
+    sencillo: { fondo: '14302E', tinta: 'FFFFFF', gris: 'BFD3CF', acento: 'FFB454', acento2: '5FD398', suave: '1F4441', paleta: ['FFB454', '5FD398', '7CC0EC', 'F0A070', 'A99CFF', 'FFFFFF', 'BFD3CF', '7FA39E'] } };
   function construir(PptxGenJS, guion, desc, meta) {
     const pptx = new PptxGenJS();
     pptx.layout = 'LAYOUT_16x9';
     pptx.author = 'Research Academy'; pptx.title = guion.titulo || meta.nombre;
-    const C = { fondo: 'FFFFFF', tinta: '17161F', gris: '5D5A6B', acento: '1F7A4D', suave: 'E8F3EC' };
-    const fuente = 'Calibri';
+    const C = (meta.oscuro ? OSCURO[meta.tono] || OSCURO.ejecutivo : TEMAS[meta.tono]) || TEMAS.ejecutivo, F = 'Calibri';
+    const tarjeta = (slide, x, y, w, h, titulo, vinetas) => {
+      slide.addShape(pptx.ShapeType.roundRect, { x, y, w, h, fill: { color: C.suave }, line: { color: C.suave }, rectRadius: 0.12 });
+      slide.addText(String(titulo || '').slice(0, 60), { x: x + 0.25, y: y + 0.2, w: w - 0.5, h: 0.6, fontFace: F, fontSize: 20, bold: true, color: C.acento });
+      slide.addText((vinetas || []).slice(0, 5).map((v) => ({ text: String(v).slice(0, 140), options: { bullet: true, breakLine: true } })), { x: x + 0.25, y: y + 0.85, w: w - 0.5, h: h - 1.0, fontFace: F, fontSize: 15, color: C.tinta, valign: 'top', paraSpaceAfter: 8 });
+    };
+    const fuente = meta.fuenteTexto || '';
+    const verificado = (v) => !fuente || cifraEnTexto(v, fuente);
+    const descartes = [];
+    // Portada
     const portada = pptx.addSlide();
-    portada.background = { color: C.acento };
-    portada.addText(guion.titulo || meta.nombre, { x: 0.6, y: 1.6, w: 8.8, h: 1.4, fontFace: fuente, fontSize: 34, bold: true, color: 'FFFFFF', valign: 'bottom' });
-    portada.addText(guion.subtitulo || '', { x: 0.6, y: 3.05, w: 8.8, h: 0.8, fontFace: fuente, fontSize: 16, color: 'E6F2EA' });
-    portada.addText(`${meta.nombre} · ${meta.fecha}`, { x: 0.6, y: 4.7, w: 8.8, h: 0.4, fontFace: fuente, fontSize: 11, color: 'D0E8D8' });
-    const laminas = (guion.laminas || []).slice(0, 12);
-    laminas.forEach((l, i) => {
-      const s = pptx.addSlide();
+    portada.background = { color: meta.oscuro ? C.fondo : C.acento };
+    portada.addShape(pptx.ShapeType.rect, { x: 0, y: 4.9, w: 10, h: 0.73, fill: { color: C.acento2 }, line: { color: C.acento2 } });
+    portada.addText(String(guion.titulo || meta.nombre).slice(0, 90), { x: 0.6, y: 1.3, w: 8.8, h: 1.6, fontFace: F, fontSize: 36, bold: true, color: meta.oscuro ? C.acento : 'FFFFFF', valign: 'bottom' });
+    portada.addText(String(guion.subtitulo || '').slice(0, 120), { x: 0.6, y: 3.0, w: 8.8, h: 0.9, fontFace: F, fontSize: 18, color: meta.oscuro ? C.tinta : 'E8EEF5' });
+    portada.addText(`${meta.nombre} · ${meta.fecha}`, { x: 0.6, y: 5.0, w: 8.8, h: 0.5, fontFace: F, fontSize: 12, color: meta.oscuro ? C.fondo : 'FFFFFF' });
+    const laminas = (guion.laminas || []).slice(0, 14);
+    const marco = (s, titulo, i) => {
       s.background = { color: C.fondo };
-      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 0.12, fill: { color: C.acento }, line: { color: C.acento } });
-      s.addText(String(l.titulo || `Lámina ${i + 1}`).slice(0, 90), { x: 0.5, y: 0.3, w: 9, h: 0.8, fontFace: fuente, fontSize: 24, bold: true, color: C.tinta });
-      let datos = null;
-      const g = l.grafico;
-      if (g && g.columna_categoria && g.columna_valor && desc && desc.hojas) {
-        const hoja = desc.hojas.find((h) => h.nombre === g.hoja) || desc.hojas[0];
-        datos = serie(hoja, g.columna_categoria, g.columna_valor);
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: 5.63, fill: { color: C.acento }, line: { color: C.acento } });
+      s.addText(String(titulo || `Lámina ${i + 1}`).slice(0, 90), { x: 0.5, y: 0.28, w: 9, h: 0.8, fontFace: F, fontSize: 26, bold: true, color: C.tinta });
+      s.addShape(pptx.ShapeType.line, { x: 0.5, y: 1.08, w: 9, h: 0, line: { color: C.suave, width: 1.5 } });
+      s.addText(`${i + 1} / ${laminas.length}`, { x: 8.6, y: 5.2, w: 1, h: 0.3, fontFace: F, fontSize: 9, color: C.gris, align: 'right' });
+    };
+    laminas.forEach((l, i) => {
+      const s = pptx.addSlide(); marco(s, l.titulo, i);
+      const vinetas = (l.vinetas || []).slice(0, 6).map((v) => ({ text: String(v).slice(0, 170), options: { bullet: true, breakLine: true } }));
+      // Cifras grandes verificadas
+      const cifras = (l.cifras || []).filter((c) => c && c.valor !== undefined && verificado(c.valor)).slice(0, 3);
+      (l.cifras || []).filter((c) => c && !verificado(c.valor)).forEach((c) => descartes.push(`cifra ${c.valor}`));
+      // Grafico: desde columnas (Excel) o desde datos del texto, verificados
+      let datos = null, g = l.grafico;
+      if (g && g.columna_categoria && g.columna_valor && desc && desc.hojas) { const hoja = desc.hojas.find((h) => h.nombre === g.hoja) || desc.hojas[0]; datos = serie(hoja, g.columna_categoria, g.columna_valor); }
+      else if (g && Array.isArray(g.datos) && g.datos.length >= 2) {
+        const ok = g.datos.filter((d) => d && d.etiqueta !== undefined && Number.isFinite(num(d.valor)) && verificado(d.valor)).slice(0, 8);
+        g.datos.filter((d) => d && !verificado(d.valor)).forEach((d) => descartes.push(`dato ${d.etiqueta} ${d.valor}`));
+        if (ok.length >= 2) datos = { labels: ok.map((d) => String(d.etiqueta).slice(0, 24)), values: ok.map((d) => Math.round(num(d.valor) * 100) / 100) };
       }
-      const vinetas = (l.vinetas || []).slice(0, 6).map((v) => ({ text: String(v).slice(0, 160), options: { bullet: true, breakLine: true } }));
-      const anchoTexto = datos ? 4.4 : 9;
-      if (vinetas.length) s.addText(vinetas, { x: 0.5, y: 1.25, w: anchoTexto, h: 3.6, fontFace: fuente, fontSize: datos ? 14 : 16, color: C.tinta, valign: 'top', paraSpaceAfter: 6 });
-      if (datos) {
-        const tipo = g.tipo === 'line' ? pptx.ChartType.line : g.tipo === 'pie' ? pptx.ChartType.pie : pptx.ChartType.bar;
-        s.addChart(tipo, [{ name: g.columna_valor, labels: datos.labels, values: datos.values }], { x: 5.1, y: 1.2, w: 4.5, h: 3.7, chartColors: [C.acento, '5A49D6', 'C2622D', '2A7FBF', '8E44AD', 'D4A017', '1F7A4D', '777777'], showLegend: g.tipo === 'pie', showValue: g.tipo !== 'line', dataLabelFontSize: 9, catAxisLabelFontSize: 9, valAxisLabelFontSize: 9, showTitle: true, title: `${g.columna_valor} por ${g.columna_categoria}`, titleFontSize: 11 });
+      if (Array.isArray(l.columnas) && l.columnas.length >= 2) {
+        const cols = l.columnas.slice(0, 3), w = (9 - 0.3 * (cols.length - 1)) / cols.length;
+        cols.forEach((c, k) => tarjeta(s, 0.5 + k * (w + 0.3), 1.3, w, 3.75, c.titulo, c.vinetas));
+      } else if (cifras.length && !datos) {
+        const w = 9 / cifras.length;
+        cifras.forEach((c, k) => {
+          s.addShape(pptx.ShapeType.rect, { x: 0.5 + k * w, y: 1.35, w: w - 0.2, h: 1.9, fill: { color: C.suave }, line: { color: C.suave } });
+          s.addText(String(c.valor).slice(0, 14), { x: 0.5 + k * w, y: 1.45, w: w - 0.2, h: 1.0, fontFace: F, fontSize: 40, bold: true, color: C.acento, align: 'center', valign: 'middle' });
+          s.addText(String(c.etiqueta || '').slice(0, 60), { x: 0.6 + k * w, y: 2.45, w: w - 0.4, h: 0.7, fontFace: F, fontSize: 13, color: C.gris, align: 'center', valign: 'top' });
+        });
+        if (vinetas.length) s.addText(vinetas, { x: 0.5, y: 3.4, w: 9, h: 1.7, fontFace: F, fontSize: 14, color: C.tinta, valign: 'top', paraSpaceAfter: 4 });
+      } else {
+        const anchoTexto = datos ? 4.3 : 9;
+        if (vinetas.length) s.addText(vinetas, { x: 0.5, y: 1.3, w: anchoTexto, h: 3.7, fontFace: F, fontSize: datos ? 15 : 20, color: C.tinta, valign: 'top', paraSpaceAfter: 10 });
+        if (datos) {
+          const tipo = g.tipo === 'line' ? pptx.ChartType.line : g.tipo === 'pie' ? pptx.ChartType.pie : pptx.ChartType.bar;
+          s.addChart(tipo, [{ name: g.titulo || g.columna_valor || 'Valor', labels: datos.labels, values: datos.values }], { x: 5.0, y: 1.25, w: 4.6, h: 3.8, chartColors: C.paleta, showLegend: g.tipo === 'pie', legendPos: 'b', showValue: true, dataLabelFontSize: 10, dataLabelFormatCode: g.unidad === '%' ? '0"%"' : '#,##0.##', catAxisLabelFontSize: 10, valAxisLabelFontSize: 9, valGridLine: { color: 'E6E6E6', style: 'solid', size: 0.5 }, showTitle: true, title: String(g.titulo || `${g.columna_valor || ''} por ${g.columna_categoria || ''}`).slice(0, 60), titleFontSize: 12, titleColor: C.tinta, barDir: g.tipo === 'barh' ? 'bar' : 'col' });
+        }
+        if (cifras.length && datos) { cifras.slice(0, 1).forEach((c) => s.addText(`${c.valor} · ${c.etiqueta || ''}`.slice(0, 70), { x: 0.5, y: 4.55, w: 4.3, h: 0.5, fontFace: F, fontSize: 13, bold: true, color: C.acento2 })); }
       }
-      s.addText(`${i + 1} / ${laminas.length}`, { x: 8.6, y: 5.15, w: 1, h: 0.3, fontFace: fuente, fontSize: 9, color: C.gris, align: 'right' });
+      if (l.fuente) s.addText(String(l.fuente).slice(0, 110), { x: 0.5, y: 5.2, w: 7.9, h: 0.3, fontFace: F, fontSize: 8, color: C.gris, italic: true });
     });
     const cierre = pptx.addSlide();
     cierre.background = { color: C.suave };
-    cierre.addText('Cierre', { x: 0.5, y: 0.4, w: 9, h: 0.7, fontFace: fuente, fontSize: 22, bold: true, color: C.tinta });
-    cierre.addText((guion.cierre || []).slice(0, 5).map((v) => ({ text: String(v).slice(0, 160), options: { bullet: true, breakLine: true } })), { x: 0.5, y: 1.2, w: 9, h: 3, fontFace: fuente, fontSize: 15, color: C.tinta, valign: 'top' });
-    cierre.addText(`Generado con Research Academy Documentos a partir de ${meta.nombre}. Cifras calculadas sobre el archivo; redacción de ${meta.modelo}. Verificar antes de presentar.`, { x: 0.5, y: 4.5, w: 9, h: 0.6, fontFace: fuente, fontSize: 9, color: C.gris });
+    cierre.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: 5.63, fill: { color: C.acento2 }, line: { color: C.acento2 } });
+    cierre.addText(guion.titulo_cierre || 'Conclusiones', { x: 0.5, y: 0.4, w: 9, h: 0.7, fontFace: F, fontSize: 24, bold: true, color: C.tinta });
+    if (Array.isArray(guion.cierre_columnas) && guion.cierre_columnas.length >= 2) { const cols = guion.cierre_columnas.slice(0, 2); cols.forEach((c, k) => tarjeta(cierre, 0.5 + k * 4.65, 1.25, 4.35, 3.4, c.titulo, c.vinetas)); }
+    else cierre.addText((guion.cierre || []).slice(0, 5).map((v) => ({ text: String(v).slice(0, 170), options: { bullet: true, breakLine: true } })), { x: 0.5, y: 1.2, w: 9, h: 3.2, fontFace: F, fontSize: 18, color: C.tinta, valign: 'top', paraSpaceAfter: 8 });
+    cierre.addText(`Generado con Research Academy a partir de ${meta.nombre}. Cifras tomadas del documento y verificadas; redacción de ${meta.modelo}. Revisar antes de presentar.`, { x: 0.5, y: 4.7, w: 9, h: 0.6, fontFace: F, fontSize: 9, color: C.gris });
+    pptx._descartes = descartes;
     return pptx;
   }
-  return { construir, serie };
+  return { construir, serie, cifraEnTexto, num };
 })();
 </script>
 <script id="docx">
@@ -754,9 +812,10 @@ function columnasDisponibles() {
 async function guionPpt() {
   const a = estado.archivo, n = Math.min(12, Math.max(3, Number($('n-laminas').value) || 6)), tono = $('tono').value;
   const cols = columnasDisponibles();
-  const sistema = `Devuelve SOLO un JSON válido con esta forma: {"titulo":"...","subtitulo":"...","laminas":[{"titulo":"...","vinetas":["...","..."],"grafico":{"hoja":"nombre de hoja","tipo":"bar|line|pie","columna_categoria":"...","columna_valor":"..."}}],"cierre":["...","..."]}. Español, tono ${tono}. Exactamente ${n} láminas, 2 a 5 viñetas cortas cada una con cifras del análisis. "grafico" solo si hay columnas disponibles y aporta; usa nombres de columna EXACTOS de la lista; si no aplica, omite "grafico". Sin texto fuera del JSON.`;
-  const usuario = `Instrucción del alumno: ${estado.peticion.instruccion || 'presentación resumen'}\n\nArchivo: ${a.nombre}\n${a.resumen}\n${cols ? `\nColumnas disponibles para gráficos:\n${cols}` : ''}\n\nAnálisis previo:\n${estado.analisis.slice(0, 2500)}`;
-  const r = await llamarChat([{ role: 'system', content: sistema }, { role: 'user', content: usuario }], null, 1800);
+  const esTexto = a.tipo === 'texto';
+  const sistema = `Eres diseñador de presentaciones. Devuelve SOLO un JSON válido: {"titulo":"...","subtitulo":"...","laminas":[{"titulo":"...","vinetas":["..."],"cifras":[{"valor":"61 %","etiqueta":"usa billetera digital"}],"grafico":{"titulo":"...","tipo":"bar|pie|line","unidad":"%","datos":[{"etiqueta":"Surco","valor":74}]},"fuente":"sección o página","columnas":[{"titulo":"Para bodegueros","vinetas":["..."]},{"titulo":"Para entidades","vinetas":["..."]}]}],"cierre":["..."],"cierre_columnas":[{"titulo":"...","vinetas":["..."]},{"titulo":"...","vinetas":["..."]}],"titulo_cierre":"Conclusión: <idea en 4 palabras>"}. Español, tono ${tono}. Exactamente ${n} láminas. Reglas: (1) una lámina de cifras grandes con 3 "cifras" al inicio; (1b) usa "columnas" (2 tarjetas con título) para comparaciones, pros y contras, antes y después, o recomendaciones por público, y "cierre_columnas" si las conclusiones se dividen por público; (2) gráficos SOLO con números que estén literalmente en el texto, nunca estimados; usa "grafico" con "datos" cuando el documento compare categorías, distritos, años, grupos o porcentajes (2 a 8 puntos); (3) 2 a 4 viñetas cortas por lámina; (4) cada lámina con "fuente" (sección o página). ${esTexto ? '' : 'Para gráficos de columnas de Excel usa {"hoja","columna_categoria","columna_valor"} con nombres EXACTOS de la lista.'} Sin texto fuera del JSON.`;
+  const usuario = `Instrucción del alumno: ${estado.peticion.instruccion || 'presentación resumen'}\n\nArchivo: ${a.nombre}\n${a.resumen}\n${cols ? `\nColumnas disponibles para gráficos:\n${cols}` : ''}\n\nAnálisis previo:\n${estado.analisis.slice(0, 2500)}${esTexto ? `\n\nTexto del documento (para tomar cifras exactas):\n${a.texto.slice(0, 24000)}` : ''}`;
+  const r = await llamarChat([{ role: 'system', content: sistema }, { role: 'user', content: usuario }], null, 3500);
   const m = r.texto.match(/\{[\s\S]*\}/); if (!m) throw new Error('el modelo no devolvió un guion válido');
   const g = JSON.parse(m[0]); if (!Array.isArray(g.laminas) || !g.laminas.length) throw new Error('guion sin láminas');
   return g;
@@ -777,15 +836,16 @@ async function generarPpt() {
     estadoPpt('Armando el guion con el modelo gratuito…');
     const guion = await guionPpt();
     estadoPpt('Construyendo la presentación…');
-    const meta = { nombre: estado.archivo.nombre, fecha: new Date().toISOString().slice(0, 10), modelo: estado.peticion.modelo };
+    const meta = { nombre: estado.archivo.nombre, fecha: new Date().toISOString().slice(0, 10), modelo: estado.peticion.modelo, tono: $('tono').value, oscuro: $('ppt-fondo').value === 'oscuro', fuenteTexto: estado.archivo.tipo === 'texto' ? estado.archivo.texto : (estado.archivo.resumen + '\n' + estado.analisis) };
     const pptx = RA_ppt.construir(window.PptxGenJS, guion, estado.archivo.desc, meta);
+    const descartes = pptx._descartes || [];
     const blob = await pptx.write({ outputType: 'blob' });
     const nombre = `${estado.archivo.nombre.replace(/\.[^.]+$/, '')}-resumen.pptx`;
     estadoPpt('Subiendo para la descarga…');
     const s = await subirArchivo(nombre, blob);
     sumar({ evitado: blob.size / 3.8 });
     $('resultado-ppt').hidden = false;
-    $('resultado-ppt').innerHTML = `Listo: <a class="enlace" href="${escapar(s.url)}" target="_blank" rel="noopener">${escapar(s.nombre)}</a> (${fmt(s.bytes / 1024)} KB, ${guion.laminas.length + 2} láminas, disponible 24 h). Revísalo antes de presentar.`;
+    $('resultado-ppt').innerHTML = `Listo: <a class="enlace" href="${escapar(s.url)}" target="_blank" rel="noopener">${escapar(s.nombre)}</a> (${fmt(s.bytes / 1024)} KB, ${guion.laminas.length + 2} láminas, disponible 24 h). Revísalo antes de presentar.${descartes.length ? ` Se omitieron ${descartes.length} cifras que el modelo propuso y no están en el documento.` : ' Todas las cifras se verificaron contra el documento.'}`;
     try { if (app.openLink) await app.openLink({ url: s.url }); } catch {}
     estado.ultimoPpt = s.url;
     await anotarEnCerebro(`PPT generado: ${s.url}`);
@@ -1204,7 +1264,7 @@ async function procesar(f) {
 }
 
 // ---- Host ----
-const app = new App({ name: 'research-academy-docs', version: '0.6.0' });
+const app = new App({ name: 'research-academy-docs', version: '0.7.1' });
 app.ontoolinput = (p) => { const a = p?.arguments || {}; estado.entradaChars = JSON.stringify(a).length; if (a.instruccion) $('instruccion').textContent = a.instruccion; if (a.accion) $('accion').value = a.accion; };
 app.ontoolresult = (r) => {
   const sc = r?.structuredContent || {}; estado.salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);

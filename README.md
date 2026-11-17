@@ -14,6 +14,14 @@ Este repositorio distribuye un plugin para Claude Pro que combina una Skill de i
 
 La instalacion del plugin no garantiza la autorizacion automatica de todos los conectores. Si se necesita, agregalos en **Personalizar > Conectores** con las URLs que aparecen abajo.
 
+## Otros agentes: Codex, Cursor, Antigravity y DeepSeek Harness
+
+El mismo plugin se instala tambien en Codex, Cursor, Antigravity y DeepSeek Harness. Cursor dibuja el panel; Codex, Antigravity y dsh no, y ahi las skills trabajan en modo directo con las herramientas del agente. Instalacion y detalles: [`docs/INSTALAR-OTROS-AGENTES.md`](docs/INSTALAR-OTROS-AGENTES.md).
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/davrv93/claude-research/main/instalar.sh | sh -s -- <codex|cursor|antigravity|dsh>
+```
+
 ## Servicios externos incluidos
 
 - **Parallel MCP oficial:** `https://mcp.parallel.ai/mcp`. Tiene `web_search`, `web_fetch` y `web_decisions` gratuitos sin cuenta (con rate limit); `web_research` requiere inicio de sesion y puede facturarse.

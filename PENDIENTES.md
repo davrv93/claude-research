@@ -1,4 +1,19 @@
-# Pendientes y oportunidades (actualizado 2026-11-07)
+# Pendientes y oportunidades (actualizado 2026-11-16)
+
+## Plugin en Codex, Cursor, Antigravity y DeepSeek Harness (0.10.0)
+
+Hecho: un manifiesto por cliente sobre la misma carpeta `plugins/research-academy/`, modo directo en las tres skills, `instalar.sh`, `scripts/verificar-plugins.mjs` y `docs/INSTALAR-OTROS-AGENTES.md`.
+
+Probado el 2026-11-16: dsh 0.2.2-rc.3 instala el bundle (`dsh plugin --profile web add file:...`), lo compone como capa propia y, en una corrida de `dsh headless` contra un LLM falso local, el catalogo enviado al modelo trae las tres skills con la descripcion nueva. Validador en verde. Copias de `instalar.sh` para Cursor y Antigravity en un HOME temporal.
+
+Sin probar (no hay Codex, Cursor ni Antigravity en esta maquina):
+1. Codex: `codex plugin marketplace add davrv93/claude-research` y que el plugin aparezca en `/plugins`. Codex tambien lee `.claude-plugin/marketplace.json`; ver si muestra dos marketplaces.
+2. Cursor: que el panel se dibuje (CSP, `ui.domain` pensado para Claude, localStorage dentro del iframe para la llave de OpenRouter).
+3. Antigravity: `agy plugin validate --strict plugins/research-academy`.
+4. dsh desde GitHub: `dsh plugin --profile web add "github:davrv93/claude-research#main&path:/plugins/research-academy"` despues del push.
+
+Idea para despues: un modo texto en el servidor del panel (que `investigar` y `delegar` devuelvan la respuesta y no solo «revisa el panel») permitiria usar el panel en Codex, Antigravity y dsh. Choca con el principio actual de que el servidor no guarda llaves ni llama a modelos: la llave tendria que viajar en una cabecera del MCP.
+
 
 ## Camino principal: extension .mcpb para Claude Desktop (sin servidor)
 

@@ -1,11 +1,13 @@
 ---
 name: plantillas-carrera
-description: Atajos por carrera u oficio para alumnos de Research Academy: contabilidad, ventas, tiendas y bodegas, tesis y educacion, software. Usar cuando el alumno diga su carrera o tarea tipica (cierre mensual, campana, inventario, capitulo de tesis, examen) y no sepa que pedir.
+description: "Atajos por carrera u oficio para alumnos de Research Academy: contabilidad, ventas, tiendas y bodegas, tesis y educacion, software. Usar cuando el alumno diga su carrera o tarea tipica (cierre mensual, campana, inventario, capitulo de tesis, examen) y no sepa que pedir."
 ---
 
 # Plantillas por carrera
 
 Cada atajo nombra la herramienta del panel que lo resuelve. Confirma en una linea que entendiste y llama a la herramienta; no expliques el kit. Pie `Consumo:` como en research-academy.
+
+En modo directo (Claude Code, Codex, Antigravity, DeepSeek Harness: el panel no se ve) no llames esas herramientas: haz el mismo atajo con las del agente, segun la tabla de `../research-academy/references/modo-directo.md`. Resumen: `investigar` = busqueda web con fuentes; `docs_analizar` y `docs_crear` = leer o escribir el archivo en el proyecto; `calcular` = formula visible; `codigo`, `render3d` y `citar` = hazlos tu; `mapa` = mapa en Mermaid.
 
 ## Contabilidad
 - Cierre mensual: `docs_analizar(accion: "corregir")` sobre su Excel, luego `docs_crear(excel, "resumen de cierre con IGV, ventas, compras y saldo")`.

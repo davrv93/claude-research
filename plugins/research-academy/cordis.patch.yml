@@ -1,0 +1,12 @@
+# Bundle de DeepSeek Harness (dsh). Registra las skills de este paquete como un
+# proveedor propio, sin tocar las raices de skills del usuario ni del proyecto.
+# No trae el panel MCP: es una MCP App y dsh no la dibuja (modo directo).
+- insert:
+    - id: research-academy-skills
+      name: '@deepseek-ai/dsh-skill-filesystem'
+      config:
+        providerName: research-academy
+        includeDefaultRoots: false
+        watch: false
+        customSkillDirs:
+          - !!js "(() => { const path = process.getBuiltinModule('node:path'); try { return path.join(path.dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('dsh-research-academy/package.json')), 'skills') } catch { return path.join(path.dirname(process.getBuiltinModule('node:url').fileURLToPath(baseUrl)), 'skills') } })()"

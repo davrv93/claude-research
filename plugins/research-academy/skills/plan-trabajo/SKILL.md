@@ -1,6 +1,6 @@
 ---
 name: plan-trabajo
-description: Arma y mantiene un plan de trabajo por fases, actividades y validaciones, con estado. Usar cuando el alumno pida un plan, cronograma, hoja de ruta, pasos para un proyecto, tesis, campana, tienda, app o tarea, o diga que avanzo y quiera actualizar el estado.
+description: "Arma y mantiene un plan de trabajo por fases, actividades y validaciones, con estado. Usar cuando el alumno pida un plan, cronograma, hoja de ruta, pasos para un proyecto, tesis, campana, tienda, app o tarea, o diga que avanzo y quiera actualizar el estado."
 ---
 
 # Plan de trabajo
@@ -40,6 +40,6 @@ Reglas: 3 a 5 actividades por fase, verbo al inicio, una sola persona responsabl
 
 ## Con Research Academy
 
-- Datos actuales para una actividad: `investigar` del panel, no busqueda nativa.
-- Si el alumno quiere guardar el plan: copiarlo a su cerebro con el panel o a un Proyecto de Claude. No afirmes que quedo guardado si no lo hiciste.
-- Termina SIEMPRE, en toda respuesta, con la linea: `Consumo: directo · externo n/d · Claude: ver Configuracion > Uso` (o `panel investigar` si se uso).
+- Datos actuales para una actividad: `investigar` del panel en modo panel (claude.ai, Claude Desktop, Cursor). En modo directo (Claude Code, Codex, Antigravity, DeepSeek Harness) usa la busqueda web del agente y cita la fuente; si no hay busqueda, marca la actividad "verificar".
+- Si el alumno quiere guardar el plan: en modo panel, a su cerebro con el panel o a un Proyecto de Claude; en modo directo, escribelo en `plan-de-trabajo.md` del proyecto abierto si el agente puede escribir archivos. No afirmes que quedo guardado si no lo hiciste.
+- Termina SIEMPRE, en toda respuesta, con la linea: `Consumo: directo · externo n/d · Claude: ver Configuracion > Uso` (o `panel investigar` si se uso). En modo directo cambia `Claude: ver Configuracion > Uso` por `agente: ver su medidor`.

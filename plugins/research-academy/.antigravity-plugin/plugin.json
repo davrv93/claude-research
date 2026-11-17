@@ -1,0 +1,12 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "research-academy",
+  "displayName": "Research Academy",
+  "version": "0.10.0",
+  "description": "Investigacion eficiente, documentos, codigo y planes de trabajo para alumnos de JMD Learning, en espanol.",
+  "suggestedPrompts": [
+    "research-academy investiga: cual es el sueldo minimo vigente en Peru",
+    "Hazme un plan de trabajo para mi tesis en 8 semanas",
+    "Soy contador: que puedo pedirte para el cierre mensual"
+  ]
+}

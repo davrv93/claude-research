@@ -1,9 +1,16 @@
 ---
 name: research-academy
-description: Kit del alumno de Claude Pro. SIEMPRE que el mensaje empiece con research-academy, y tambien cuando pida investigar o buscar datos actuales, explicar un concepto, resumir o transformar un Excel, CSV, PDF, Word, foto o audio, crear una plantilla de Excel o un Word, hacer un PPT, escribir o corregir codigo, un objeto en 3D, citas APA, calcular IGV, punto de equilibrio o prestamo, ver su mapa mental o cerebro, o configurar llaves y proveedores. Enruta cada pedido a una herramienta del panel research-academy-panel para gastar pocos tokens de Claude.
+description: "Kit del alumno de Research Academy (JMD Learning) en Claude, Cursor, Codex, Antigravity o DeepSeek Harness. SIEMPRE que el mensaje empiece con research-academy, y tambien cuando pida investigar o buscar datos actuales, explicar un concepto, resumir o transformar un Excel, CSV, PDF, Word, foto o audio, crear una plantilla de Excel o un Word, hacer un PPT, escribir o corregir codigo, un objeto en 3D, citas APA, calcular IGV, punto de equilibrio o prestamo, ver su mapa mental o cerebro, o configurar llaves y proveedores. Enruta cada pedido a una herramienta del panel research-academy-panel para gastar pocos tokens; donde el panel no se ve, trabaja en modo directo con las herramientas del agente."
 ---
 
-# Research Academy 0.9.3
+# Research Academy 0.10.0
+
+## Donde estas (decide antes que nada)
+
+El panel `research-academy-panel` es una MCP App: solo se ve en claude.ai, Claude Desktop y Cursor.
+
+- **Modo panel**: estas en claude.ai, Claude Desktop o Cursor y las herramientas del panel (`investigar`, `delegar`, `docs_analizar`...) estan disponibles. Sigue "Ruta" tal cual.
+- **Modo directo**: estas en Claude Code, Codex, Antigravity o DeepSeek Harness, o el panel no esta conectado. Ahi esas herramientas solo contestan "revisa el panel" y el alumno no ve nada: no las llames. Haz el trabajo tu, con las herramientas del agente, segun `references/modo-directo.md`. Lo demas de esta Skill (salida, tamano, prohibido) sigue igual.
 
 ## Salida (siempre)
 
@@ -71,4 +78,4 @@ Si llega un mensaje que empieza con "Contexto de documento (Research Academy Doc
 - Modelos de pago (el panel ya los rechaza). Claves API en el chat. Afirmar ahorro de cuota sin medicion.
 - Presentar cifras no verificadas como hechos. Marcarlas "no verificado".
 
-Medicion y problemas de instalacion: `references/medicion.md`, `references/instalacion.md`.
+Modo directo: `references/modo-directo.md`. Medicion y problemas de instalacion: `references/medicion.md`, `references/instalacion.md`.

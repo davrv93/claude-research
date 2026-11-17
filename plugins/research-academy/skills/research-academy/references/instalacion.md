@@ -9,3 +9,5 @@
 7. Comprueba: `research-academy investiga: cual es el sueldo minimo vigente en Peru`. Debe aparecer el panel con fuentes y el medidor de tokens.
 
 Si el panel no se muestra, Claude lo dice y responde directo. El servidor del panel no guarda llaves ni llama a modelos; solo entrega la interfaz.
+
+Codex, Cursor, Antigravity y DeepSeek Harness: `docs/INSTALAR-OTROS-AGENTES.md` del repositorio. En Codex, Antigravity, dsh y Claude Code el panel no se dibuja y la Skill trabaja en modo directo (`references/modo-directo.md`).

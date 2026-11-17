@@ -1,0 +1,12 @@
+{
+  "name": "research-academy-marketplace",
+  "interface": {"displayName": "Research Academy"},
+  "plugins": [
+    {
+      "name": "research-academy",
+      "source": {"source": "local", "path": "./plugins/research-academy"},
+      "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+      "category": "Productivity"
+    }
+  ]
+}

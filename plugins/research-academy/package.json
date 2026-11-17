@@ -1,0 +1,22 @@
+{
+  "name": "dsh-research-academy",
+  "version": "0.10.0",
+  "description": "Research Academy para DeepSeek Harness: investigar, documentos, codigo y planes de trabajo en espanol, en modo directo.",
+  "private": false,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davrv93/claude-research.git",
+    "directory": "plugins/research-academy"
+  },
+  "files": ["cordis.patch.yml", "skills"],
+  "exports": {
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

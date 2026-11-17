@@ -1,0 +1,24 @@
+{
+  "name": "research-academy",
+  "version": "0.10.0",
+  "description": "Investigacion eficiente, documentos, codigo y planes de trabajo para alumnos de JMD Learning, en espanol.",
+  "author": {"name": "JMD Learning", "url": "https://jmd-learn.online"},
+  "homepage": "https://github.com/davrv93/claude-research",
+  "repository": "https://github.com/davrv93/claude-research",
+  "license": "MIT",
+  "keywords": ["investigacion", "espanol", "alumnos", "documentos", "plan-de-trabajo"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Research Academy",
+    "shortDescription": "Kit del alumno: investigar, documentos, codigo y planes",
+    "longDescription": "Tres skills de Research Academy (research-academy, plan-trabajo, plantillas-carrera) en modo directo: Codex investiga con su busqueda web, lee y crea Excel o Word en el proyecto y responde corto, en espanol y con fuentes. El panel de Claude no se usa aqui porque Codex no dibuja MCP Apps.",
+    "developerName": "JMD Learning",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://jmd-learn.online",
+    "defaultPrompt": [
+      "research-academy investiga: cual es el sueldo minimo vigente en Peru",
+      "Hazme un plan de trabajo para mi tesis en 8 semanas"
+    ]
+  }
+}

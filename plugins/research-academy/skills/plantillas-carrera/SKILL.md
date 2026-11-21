@@ -40,6 +40,7 @@ En modo directo (Claude Code, Codex, Antigravity, DeepSeek Harness: el panel no 
 ## Software y datos
 - Snippet, error, tests, convertir lenguaje: `codigo`.
 - Maqueta 3D de un producto o pieza: `render3d`.
+- Tablero de ventas, indicadores o KPIs desde un Excel o CSV: `dashboard`.
 - Explicar un concepto: `delegar`.
 - Version o API actual de una libreria: `investigar`.
 - Limpiar un CSV: `docs_analizar(accion: "limpiar")`.

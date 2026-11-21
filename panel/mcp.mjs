@@ -16,8 +16,9 @@ export const DOCS_URI = 'ui://research-academy/docs';
 export const CONFIG_URI = 'ui://research-academy/config';
 export const CODIGO_URI = 'ui://research-academy/codigo';
 export const TRES_URI = 'ui://research-academy/3d';
+export const TABLERO_URI = 'ui://research-academy/tablero';
 export const MODELO_POR_DEFECTO = 'nvidia/nemotron-3-ultra-550b-a55b:free';
-export const VERSION = '0.13.2';
+export const VERSION = '0.14.0';
 
 // Metadatos de la interfaz: a qué dominios puede conectarse el panel y de dónde carga módulos.
 export function metaUi() {
@@ -274,7 +275,22 @@ export function buildServer() {
     async ({ descripcion, estilo }) => ({ content: [{ type: 'text', text: `Panel 3D abierto${descripcion ? ` para «${descripcion.slice(0, 60)}»` : ''}. Responde solo: 'Listo, revisa el panel.' más el pie Consumo.` }], structuredContent: { modo: '3d', descripcion, estilo } }),
   );
 
-  for (const [uri, archivo, nombre, desc] of [[CONFIG_URI, 'config.html', 'Configuración de Research Academy', 'Llaves, proveedores y preferencias, solo en el navegador del alumno.'], [CODIGO_URI, 'codigo.html', 'Panel Código de Research Academy', 'Código con proveedores gratuitos, vista previa y ejecución.'], [TRES_URI, 'tres.html', 'Panel 3D de Research Academy', 'Objetos en 3D con three.js a partir de texto o foto.']]) {
+  registerAppTool(
+    server,
+    'dashboard',
+    {
+      title: 'Tablero de datos',
+      description: 'USAR CUANDO: dashboard, tablero, KPIs, indicadores, panel de control, gráficos de un Excel o CSV. ' + NO_REPETIR,
+      inputSchema: {
+        objetivo: z.string().default('').describe('Decisión que el tablero debe apoyar, en palabras del alumno.'),
+        ejemplo: z.boolean().default(false).describe('true solo si el alumno pide probar con datos de ejemplo.'),
+      },
+      _meta: { ui: { resourceUri: TABLERO_URI } },
+    },
+    async ({ objetivo, ejemplo }) => ({ content: [{ type: 'text', text: `Panel Tablero abierto${objetivo ? ` para «${objetivo.slice(0, 60)}»` : ''}. Responde solo: 'Listo, revisa el panel.' más el pie Consumo.` }], structuredContent: { modo: 'tablero', objetivo, ejemplo } }),
+  );
+
+  for (const [uri, archivo, nombre, desc] of [[CONFIG_URI, 'config.html', 'Configuración de Research Academy', 'Llaves, proveedores y preferencias, solo en el navegador del alumno.'], [CODIGO_URI, 'codigo.html', 'Panel Código de Research Academy', 'Código con proveedores gratuitos, vista previa y ejecución.'], [TRES_URI, 'tres.html', 'Panel 3D de Research Academy', 'Objetos en 3D con three.js a partir de texto o foto.'], [TABLERO_URI, 'tablero.html', 'Panel Tablero de Research Academy', 'Tableros de datos con ECharts a partir de un Excel o CSV.']]) {
     registerAppResource(server, nombre, uri, { description: desc, mimeType: RESOURCE_MIME_TYPE, _meta: { ui: metaUi() } }, async () => ({
       contents: [{ uri, mimeType: RESOURCE_MIME_TYPE, text: conVersion(await readFile(join(AQUI, archivo), 'utf8')).split('__CEREBRO_URL__').join(cerebroUrl()), _meta: { ui: metaUi() } }],
     }));
@@ -300,7 +316,7 @@ export function buildServer() {
         {
           uri: PANEL_URI,
           mimeType: RESOURCE_MIME_TYPE,
-          text: (await readFile(join(AQUI, 'panel.html'), 'utf8')).replace('__CEREBRO_URL__', cerebroUrl()),
+          text: conVersion(await readFile(join(AQUI, 'panel.html'), 'utf8')).split('__CEREBRO_URL__').join(cerebroUrl()),
           _meta: { ui: metaUi() },
         },
       ],

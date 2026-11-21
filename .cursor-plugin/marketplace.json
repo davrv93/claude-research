@@ -1,7 +1,7 @@
 {
   "name": "research-academy-marketplace",
   "owner": {"name": "JMD Learning"},
-  "metadata": {"description": "Complementos de investigacion eficiente para alumnos de JMD Learning", "version": "0.10.0"},
+  "metadata": {"description": "Complementos de investigacion eficiente para alumnos de JMD Learning", "version": "0.11.0"},
   "plugins": [
     {"name": "research-academy", "source": "plugins/research-academy", "description": "Investigacion eficiente, documentos, codigo y planes de trabajo para alumnos de JMD Learning, en espanol."}
   ]

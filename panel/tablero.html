@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Academy · Tablero</title>
+<link rel="stylesheet" href="__CEREBRO_URL__/comun.css">
+<style id="estilo-tablero">
+/* Tablero: tokens de visualización (paleta de referencia validada para daltonismo, claro y oscuro elegidos por separado). */
+.tablero {
+  color-scheme: light;
+  --t-plano: #f9f9f7; --t-superficie: #fcfcfb; --t-tinta: #0b0b0b; --t-tinta-2: #52514e; --t-apagada: #898781;
+  --t-rejilla: #e1e0d9; --t-eje: #c3c2b7; --t-borde: rgba(11,11,11,0.10); --t-sube-bien: #006300; --t-baja-mal: #d03b3b; --t-gris: #c3c2b7;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --q100: #cde2fb; --q250: #86b6ef; --q400: #3987e5; --q550: #1c5cab; --q700: #0d366b;
+  --t-foco: #2a78d6;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--t-tinta); background: var(--t-plano);
+  border-radius: 12px; padding: 16px; line-height: 1.4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .tablero {
+    color-scheme: dark;
+    --t-plano: #0d0d0d; --t-superficie: #1a1a19; --t-tinta: #f0efec; --t-tinta-2: #c3c2b7; --t-apagada: #898781;
+    --t-rejilla: #2c2c2a; --t-eje: #383835; --t-borde: rgba(255,255,255,0.10); --t-sube-bien: #0ca30c; --t-baja-mal: #e66767; --t-gris: #4a4a47;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #0ca30c; --s7: #9085e9; --s8: #e66767;
+    --q100: #104281; --q250: #1c5cab; --q400: #2a78d6; --q550: #6da7ec; --q700: #cde2fb; --t-foco: #6da7ec;
+  }
+}
+:root[data-theme="dark"] .tablero {
+  color-scheme: dark;
+  --t-plano: #0d0d0d; --t-superficie: #1a1a19; --t-tinta: #f0efec; --t-tinta-2: #c3c2b7; --t-apagada: #898781;
+  --t-rejilla: #2c2c2a; --t-eje: #383835; --t-borde: rgba(255,255,255,0.10); --t-sube-bien: #0ca30c; --t-baja-mal: #e66767; --t-gris: #4a4a47;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #0ca30c; --s7: #9085e9; --s8: #e66767;
+  --q100: #104281; --q250: #1c5cab; --q400: #2a78d6; --q550: #6da7ec; --q700: #cde2fb; --t-foco: #6da7ec;
+}
+.tablero ::selection { background: var(--q250); color: var(--t-tinta); }
+.tablero :focus-visible { outline: 2px solid var(--t-foco); outline-offset: 2px; }
+.tablero h1, .tablero h2 { text-transform: none; }
+.tablero h1 { font-size: 1.375rem; font-weight: 650; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.tablero .t-sub { color: var(--t-tinta-2); margin: 4px 0 0; max-width: 70ch; font-size: 0.9375rem; }
+.tablero .t-filtros { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: end; margin: 16px 0 12px; }
+.tablero .t-filtros label { display: grid; gap: 2px; font-size: 0.8125rem; color: var(--t-tinta-2); }
+.tablero .t-filtros select, .tablero .t-btn { font: inherit; font-size: 0.875rem; color: var(--t-tinta); background: var(--t-superficie); border: 1px solid var(--t-borde); border-radius: 8px; padding: 6px 10px; min-height: 34px; }
+.tablero .t-btn { cursor: pointer; }
+.tablero .t-btn:hover { background: var(--t-plano); }
+.tablero .t-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.tablero .t-kpi { background: var(--t-superficie); border: 1px solid var(--t-borde); border-radius: 10px; padding: 14px 16px 12px; display: grid; gap: 4px; }
+.tablero .t-kpi-etq { font-size: 0.8125rem; color: var(--t-tinta-2); }
+.tablero .t-kpi-val { font-size: 1.75rem; font-weight: 620; letter-spacing: -0.02em; line-height: 1.1; }
+.tablero .t-kpi-pie { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
+.tablero .t-delta { font-size: 0.8125rem; display: inline-flex; align-items: center; gap: 4px; color: var(--t-tinta-2); }
+.tablero .t-delta b { font-weight: 600; }
+.tablero .t-delta.bien b { color: var(--t-sube-bien); }
+.tablero .t-delta.mal b { color: var(--t-baja-mal); }
+.tablero .t-graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 12px; }
+.tablero .t-card { background: var(--t-superficie); border: 1px solid var(--t-borde); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.tablero .t-card.ancho { grid-column: 1 / -1; }
+.tablero .t-card header { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.tablero .t-card h2 { font-size: 1rem; font-weight: 620; margin: 0; text-wrap: balance; text-transform: none; letter-spacing: normal; color: var(--t-tinta); }
+.tablero .t-card p { margin: 2px 0 0; color: var(--t-tinta-2); font-size: 0.8125rem; }
+.tablero .t-lienzo { width: 100%; height: 300px; margin-top: 8px; }
+.tablero .t-tabla { width: 100%; border-collapse: collapse; font-size: 0.8125rem; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.tablero .t-tabla th, .tablero .t-tabla td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--t-rejilla); }
+.tablero .t-tabla th { color: var(--t-tinta-2); font-weight: 600; text-transform: none; letter-spacing: normal; position: sticky; top: 0; background: var(--t-superficie); }
+.tablero .t-tabla td.n, .tablero .t-tabla th.n { text-align: right; }
+.tablero .t-tabla-caja { max-height: 320px; overflow: auto; }
+.tablero .t-vacio { padding: 40px 12px; text-align: center; color: var(--t-tinta-2); }
+.tablero .t-nota { font-size: 0.75rem; color: var(--t-apagada); margin: 12px 0 0; }
+.tablero .t-ajustes { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: var(--t-superficie); border: 1px solid var(--t-borde); font-size: 0.8125rem; color: var(--t-tinta-2); }
+.tablero .t-ajustes summary { cursor: pointer; color: var(--t-tinta); font-weight: 600; }
+.tablero .t-ajustes ul { margin: 6px 0 0; padding-left: 18px; }
+@media (prefers-reduced-motion: reduce) { .tablero * { transition: none !important; animation: none !important; } }
+</style>
+<style>
+  .zona-datos { margin-top: 8px; }
+  #tablero-raiz { margin-top: 12px; }
+</style>
+</head>
+<body>
+  <div class="cab"><h1>Tablero</h1><span class="modelo" id="modelo">suelta un Excel o CSV y di qué quieres ver</span></div>
+
+  <section class="caja">
+    <h2>Datos</h2>
+    <div class="zona zona-datos" id="zona" tabindex="0"><b>Suelta un Excel o CSV</b> o haz clic para elegirlo. Se lee en tu navegador.</div>
+    <input type="file" id="archivo" hidden accept=".xlsx,.xls,.xlsm,.csv,.tsv">
+    <p class="nota" id="resumen-datos" hidden></p>
+    <label class="nota" for="objetivo" style="display:block;margin-top:8px">¿Qué decisión tiene que ayudar a tomar el tablero?</label>
+    <textarea id="objetivo" placeholder="Ej.: ver qué sede y qué categoría venden más, cómo van las ventas mes a mes y dónde baja el margen."></textarea>
+    <div class="fila">
+      <button class="primario" id="btn-armar">Armar tablero</button>
+      <button id="btn-sin-modelo" title="Propuesta automática a partir de las columnas, sin llamar a ningún modelo">Armar sin modelo</button>
+      <button id="btn-ejemplo">Usar datos de ejemplo</button>
+    </div>
+    <div class="estado" id="estado" hidden><span class="punto"></span><span id="estado-texto"></span></div>
+    <div class="error" id="error" hidden></div>
+  </section>
+
+  <section class="caja" id="caja-tablero" hidden>
+    <h2>Tablero</h2>
+    <div id="tablero-raiz"></div>
+    <div class="fila">
+      <input id="pedido-mejora" placeholder="Pide un cambio: agrega el margen por sede; quita la tabla…" style="flex:1;min-width:220px">
+      <button id="btn-mejorar">Pedir cambio</button>
+    </div>
+    <div class="fila">
+      <button id="btn-html">Descargar HTML (abre sin internet de por medio, con los datos)</button>
+      <button id="btn-plan">Copiar plan JSON</button>
+      <button id="btn-claude" title="Envía el plan y el resumen de columnas al chat; eso sí gasta tokens de Claude">Pasar a Claude</button>
+    </div>
+    <p class="nota" id="nota" hidden></p>
+  </section>
+
+  <section class="caja">
+    <h2>Consumo</h2>
+    <div class="medidor" id="medidor"></div>
+    <p class="nota">El archivo no sale de tu navegador: al modelo gratuito solo van los nombres y tipos de columna, algunos valores de ejemplo y 10 filas de muestra. Los cálculos y los gráficos los hace el panel.</p>
+  </section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.6.0/echarts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="__CEREBRO_URL__/proveedores.js"></script>
+<script id="motor-tablero">
+// Motor del tablero: perfila los datos, revisa el plan con reglas de visualización y lo dibuja con ECharts.
+// Es un script clásico y autónomo: el panel lo usa y el HTML descargado lleva una copia exacta.
+// El plan es solo datos; nada del modelo se ejecuta.
+(function () {
+  'use strict';
+  var FORMAS = ['linea', 'area', 'barras', 'barras_h', 'apiladas', 'segmentada', 'heatmap', 'dispersion', 'tabla'];
+  var AGREG = ['suma', 'promedio', 'conteo', 'max', 'min', 'distintos'];
+  var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+  // ---------- Lectura de valores ----------
+  function aNumero(v) {
+    if (typeof v === 'number') return isFinite(v) ? v : null;
+    if (v == null) return null;
+    var s = String(v).trim().replace(/^S\/\s*|\s*%$/g, '').replace(/\s/g, '');
+    if (!/^-?[\d.,]+$/.test(s)) return null;
+    var c = s.lastIndexOf(','), p = s.lastIndexOf('.');
+    if (c > -1 && p > -1) s = c > p ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+    else if (c > -1) s = /,\d{3}$/.test(s) && s.split(',').length > 2 ? s.replace(/,/g, '') : s.replace(',', '.');
+    else if ((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, '');
+    var n = Number(s);
+    return isFinite(n) ? n : null;
+  }
+  function aFecha(v) {
+    if (v instanceof Date) return isNaN(v) ? null : v;
+    if (v == null) return null;
+    var s = String(v).trim(), m;
+    if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return new Date(Date.UTC(+m[1], m[2] - 1, +m[3]));
+    if ((m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/))) return new Date(Date.UTC(+m[3], m[2] - 1, +m[1]));   // dd/mm/aaaa (Perú)
+    if ((m = s.match(/^(\d{4})-(\d{1,2})$/))) return new Date(Date.UTC(+m[1], m[2] - 1, 1));
+    return null;
+  }
+
+  // ---------- Perfil de columnas ----------
+  function perfilar(filas) {
+    var cols = filas.length ? Object.keys(filas[0]) : [];
+    var n = filas.length;
+    var columnas = cols.map(function (c) {
+      var nums = 0, fechas = 0, llenas = 0, distintos = new Map();
+      for (var i = 0; i < n; i++) {
+        var v = filas[i][c];
+        if (v == null || v === '') continue;
+        llenas++;
+        if (aFecha(v)) fechas++; else if (aNumero(v) != null) nums++;
+        if (distintos.size < 2000) distintos.set(String(v), (distintos.get(String(v)) || 0) + 1);
+      }
+      var tipo = 'texto';
+      if (llenas && fechas / llenas > 0.9) tipo = 'fecha';
+      else if (llenas && nums / llenas > 0.9) tipo = 'numero';
+      else if (distintos.size <= Math.max(40, n * 0.2)) tipo = 'categoria';
+      var col = { nombre: c, tipo: tipo, distintos: distintos.size, vacias: n - llenas };
+      if (tipo === 'numero') {
+        var vals = filas.map(function (f) { return aNumero(f[c]); }).filter(function (x) { return x != null; });
+        col.min = Math.min.apply(null, vals); col.max = Math.max.apply(null, vals);
+        col.suma = vals.reduce(function (a, b) { return a + b; }, 0);
+        var enteros = vals.every(function (x) { return Math.round(x) === x; });
+        if (enteros && distintos.size === llenas && llenas > 20 && /(^|_|\b)(id|cod|codigo|dni|ruc|n°|nro|numero)\b/i.test(c)) col.tipo = 'id';
+      } else if (tipo === 'fecha') {
+        var ts = filas.map(function (f) { var d = aFecha(f[c]); return d ? d.getTime() : null; }).filter(function (x) { return x != null; });
+        col.desde = new Date(Math.min.apply(null, ts)).toISOString().slice(0, 10); col.hasta = new Date(Math.max.apply(null, ts)).toISOString().slice(0, 10);
+      } else {
+        col.ejemplos = [...distintos.entries()].sort(function (a, b) { return b[1] - a[1]; }).slice(0, 6).map(function (e) { return e[0].slice(0, 40); });
+      }
+      return col;
+    });
+    return { filas: n, columnas: columnas };
+  }
+  var colDe = function (perfil, nombre) { return perfil.columnas.find(function (c) { return c.nombre === nombre; }); };
+
+  // ---------- Propuesta sin modelo ----------
+  function proponer(perfil, objetivo) {
+    var nums = perfil.columnas.filter(function (c) { return c.tipo === 'numero'; });
+    var cats = perfil.columnas.filter(function (c) { return c.tipo === 'categoria' && c.distintos > 1; }).sort(function (a, b) { return a.distintos - b.distintos; });
+    var fecha = perfil.columnas.find(function (c) { return c.tipo === 'fecha'; });
+    var dinero = nums.find(function (c) { return /venta|monto|importe|total|ingreso|precio|soles|s\/|costo|gasto/i.test(c.nombre); }) || nums[0];
+    var plan = { titulo: objetivo ? objetivo.slice(0, 70) : 'Resumen de los datos', subtitulo: '', kpis: [], graficos: [], filtros: [] };
+    if (dinero) plan.kpis.push({ etiqueta: dinero.nombre, columna: dinero.nombre, agregacion: 'suma', formato: /venta|monto|importe|total|ingreso|precio|soles|costo|gasto/i.test(dinero.nombre) ? 'moneda' : 'numero', bueno: 'sube' });
+    nums.filter(function (c) { return c !== dinero; }).slice(0, 2).forEach(function (c) { plan.kpis.push({ etiqueta: c.nombre, columna: c.nombre, agregacion: /margen|%|porc|tasa/i.test(c.nombre) ? 'promedio' : 'suma', formato: /margen|%|porc|tasa/i.test(c.nombre) ? 'porcentaje' : 'numero', bueno: 'sube' }); });
+    plan.kpis.push({ etiqueta: 'Registros', columna: null, agregacion: 'conteo', formato: 'numero', bueno: 'sube' });
+    if (fecha && dinero) plan.graficos.push({ titulo: dinero.nombre + ' en el tiempo', pregunta: '¿Sube o baja?', forma: cats[0] && cats[0].distintos <= 6 ? 'linea' : 'area', x: fecha.nombre, y: dinero.nombre, agregacion: 'suma', serie: cats[0] && cats[0].distintos <= 6 ? cats[0].nombre : null });
+    if (cats[0] && dinero) plan.graficos.push({ titulo: dinero.nombre + ' por ' + cats[0].nombre, pregunta: '¿Quién aporta más?', forma: 'barras_h', x: cats[0].nombre, y: dinero.nombre, agregacion: 'suma' });
+    if (cats[1] && dinero) plan.graficos.push({ titulo: dinero.nombre + ' por ' + cats[1].nombre, pregunta: '¿Cómo se reparte?', forma: 'barras_h', x: cats[1].nombre, y: dinero.nombre, agregacion: 'suma' });
+    if (cats[0] && cats[1] && dinero) plan.graficos.push({ titulo: cats[0].nombre + ' y ' + cats[1].nombre, pregunta: '¿Dónde se concentra?', forma: 'heatmap', x: cats[1].nombre, y: dinero.nombre, serie: cats[0].nombre, agregacion: 'suma' });
+    plan.graficos.push({ titulo: 'Detalle', pregunta: 'Las filas con los valores más altos', forma: 'tabla', y: dinero ? dinero.nombre : null });
+    plan.filtros = [fecha ? fecha.nombre : null].concat(cats.slice(0, 2).map(function (c) { return c.nombre; })).filter(Boolean);
+    return plan;
+  }
+
+  // ---------- Revisor de diseño: corrige el plan con reglas de visualización y dice qué cambió ----------
+  function revisar(planIn, perfil) {
+    var ajustes = [];
+    var p = JSON.parse(JSON.stringify(planIn || {}));
+    var existe = function (c) { return !!colDe(perfil, c); };
+    p.titulo = String(p.titulo || 'Tablero').slice(0, 90);
+    p.subtitulo = String(p.subtitulo || '').slice(0, 200);
+    p.kpis = (Array.isArray(p.kpis) ? p.kpis : []).filter(function (k) {
+      if (k.agregacion === 'conteo' && !k.columna) return true;
+      if (!existe(k.columna)) { ajustes.push('Quité la cifra «' + (k.etiqueta || k.columna) + '»: la columna no existe.'); return false; }
+      return true;
+    }).map(function (k) {
+      var agg = AGREG.indexOf(k.agregacion) > -1 ? k.agregacion : (k.columna ? 'suma' : 'conteo');
+      var nombreAgg = { suma: 'total de ', promedio: 'promedio de ', max: 'máximo de ', min: 'mínimo de ', distintos: 'distintos de ', conteo: '' }[agg];
+      return { etiqueta: String(k.etiqueta || (k.columna ? (agg === 'suma' ? k.columna : nombreAgg + k.columna) : 'Registros')).slice(0, 40), columna: k.columna || null, agregacion: agg,
+        formato: ['numero', 'moneda', 'porcentaje'].indexOf(k.formato) > -1 ? k.formato : (agg === 'conteo' || agg === 'distintos' ? 'numero' : formatoDe(k.columna)), bueno: k.bueno === 'baja' ? 'baja' : 'sube' };
+    });
+    if (p.kpis.length > 4) { ajustes.push('Dejé 4 cifras arriba: más de 4 compiten entre sí y ninguna se lee.'); p.kpis = p.kpis.slice(0, 4); }
+    var graf = (Array.isArray(p.graficos) ? p.graficos : []).map(function (g) {
+      var forma = String(g.forma || '').toLowerCase();
+      var o = { titulo: String(g.titulo || '').slice(0, 80), pregunta: String(g.pregunta || '').slice(0, 140), forma: forma, x: g.x || null, y: g.y || null, serie: g.serie || null, agregacion: AGREG.indexOf(g.agregacion) > -1 ? g.agregacion : (g.y ? 'suma' : 'conteo'), enfasis: g.enfasis != null ? String(g.enfasis) : null };
+      if (/torta|pie|dona|donut|pastel|circular/.test(forma)) { o.forma = 'barras_h'; ajustes.push('«' + o.titulo + '»: cambié la torta por barras ordenadas. En una torta las partes parecidas no se distinguen; en barras sobre una misma base, sí.'); }
+      if (/doble|dual|dos ejes/.test(forma)) { o.forma = 'linea'; ajustes.push('«' + o.titulo + '»: nada de dos ejes Y. Inventan una relación que no está en los datos; usa dos gráficos.'); }
+      if (/3d/.test(forma)) { o.forma = 'barras'; ajustes.push('«' + o.titulo + '»: sin 3D. La perspectiva deforma los tamaños.'); }
+      if (FORMAS.indexOf(o.forma) < 0) o.forma = 'barras';
+      return o;
+    });
+    graf = graf.filter(function (g) {
+      for (var k of ['x', 'y', 'serie']) if (g[k] && !existe(g[k])) { ajustes.push('Quité «' + g.titulo + '»: la columna «' + g[k] + '» no existe.'); return false; }
+      if (g.forma !== 'tabla' && !g.x) { ajustes.push('Quité «' + g.titulo + '»: le falta el eje X.'); return false; }
+      return true;
+    });
+    graf.forEach(function (g) {
+      var cx = colDe(perfil, g.x), cy = g.y && colDe(perfil, g.y), cs = g.serie && colDe(perfil, g.serie);
+      if (cy && cy.tipo !== 'numero' && g.forma !== 'tabla') { g.agregacion = 'conteo'; ajustes.push('«' + g.titulo + '»: «' + g.y + '» no es numérica; cuento filas.'); g.y = null; }
+      if ((g.forma === 'linea' || g.forma === 'area') && cx && cx.tipo !== 'fecha') { g.forma = cx.tipo === 'numero' ? 'dispersion' : 'barras_h'; ajustes.push('«' + g.titulo + '»: una línea es para el tiempo; «' + g.x + '» no es fecha, así que van barras.'); }
+      if (g.forma === 'area' && g.serie) { g.forma = 'linea'; ajustes.push('«' + g.titulo + '»: con varias series, líneas finas; las áreas se tapan entre sí.'); }
+      if (g.forma === 'dispersion' && (!cx || cx.tipo !== 'numero' || !cy)) { g.forma = 'barras_h'; ajustes.push('«' + g.titulo + '»: la dispersión necesita dos columnas numéricas.'); }
+      if (g.forma === 'heatmap' && !cs) { g.forma = 'barras_h'; ajustes.push('«' + g.titulo + '»: el mapa de calor necesita dos categorías; van barras.'); }
+      if ((g.forma === 'barras' || g.forma === 'apiladas') && cx && cx.tipo === 'categoria' && cx.distintos > 8 && !g.serie) { g.forma = 'barras_h'; ajustes.push('«' + g.titulo + '»: muchas categorías en vertical cortan los nombres; las puse horizontales y ordenadas.'); }
+      if (g.forma === 'segmentada' && cx && cx.distintos > 6) { g.forma = 'barras_h'; ajustes.push('«' + g.titulo + '»: más de 6 partes no se leen en una barra segmentada; van barras ordenadas.'); }
+      if (cx && cx.tipo === 'categoria' && cx.distintos === 1 && g.forma !== 'tabla') { g.forma = 'cifra'; ajustes.push('«' + g.titulo + '»: un gráfico de una sola barra es una cifra; la pasé arriba.'); }
+      if (cs && g.forma !== 'heatmap') {
+        var tope = g.forma === 'dispersion' ? 3 : 6;
+        if (cs.distintos > tope) { g.topeSerie = tope - 1; ajustes.push('«' + g.titulo + '»: ' + cs.distintos + ' series no se distinguen por color; dejé las ' + (tope - 1) + ' mayores y junté el resto en «Otros».'); }
+      }
+      if (cs && cs.distintos > 1 && g.enfasis) { ajustes.push('«' + g.titulo + '»: resalto «' + g.enfasis + '» y el resto va en gris.'); }
+    });
+    graf.filter(function (g) { return g.forma === 'cifra'; }).forEach(function (g) { if (p.kpis.length < 4) p.kpis.push({ etiqueta: g.titulo || g.y, columna: g.y, agregacion: g.agregacion, formato: 'numero', bueno: 'sube' }); });
+    graf = graf.filter(function (g) { return g.forma !== 'cifra'; });
+    if (graf.length > 6) { ajustes.push('Dejé 6 gráficos: un tablero que hay que recorrer con scroll pierde la vista de conjunto.'); graf = graf.slice(0, 6); }
+    p.graficos = graf;
+    p.filtros = (Array.isArray(p.filtros) ? p.filtros : []).filter(function (f) { var c = colDe(perfil, f); return c && (c.tipo === 'fecha' || c.tipo === 'categoria'); }).slice(0, 4);
+    return { plan: p, ajustes: ajustes };
+  }
+
+  // ---------- Cálculos ----------
+  function agregar(vals, agg) {
+    if (agg === 'conteo') return vals.length;
+    var nums = vals.map(aNumero).filter(function (x) { return x != null; });
+    if (agg === 'distintos') return new Set(vals.map(String)).size;
+    if (!nums.length) return 0;
+    if (agg === 'promedio') return nums.reduce(function (a, b) { return a + b; }, 0) / nums.length;
+    if (agg === 'max') return Math.max.apply(null, nums);
+    if (agg === 'min') return Math.min.apply(null, nums);
+    return nums.reduce(function (a, b) { return a + b; }, 0);
+  }
+  function granoDe(desde, hasta) { var d = (hasta - desde) / 864e5; return d <= 62 ? 'dia' : d <= 400 ? 'mes' : d <= 1500 ? 'mes' : 'anio'; }
+  function claveTiempo(d, g) { var iso = d.toISOString(); return g === 'dia' ? iso.slice(0, 10) : g === 'mes' ? iso.slice(0, 7) : iso.slice(0, 4); }
+  function etiquetaTiempo(k) { var p = k.split('-'); if (p.length === 2) return MESES[+p[1] - 1] + ' ' + p[0].slice(2); if (p.length === 3) return +p[2] + ' ' + MESES[+p[1] - 1]; return k; }
+  // Agrupa filas por x (y serie): devuelve { claves, series: [{nombre, valores}] }
+  function agrupar(filas, perfil, g) {
+    var cx = colDe(perfil, g.x), esFecha = cx && cx.tipo === 'fecha', grano = null;
+    if (esFecha) { var ts = filas.map(function (f) { var d = aFecha(f[g.x]); return d ? d.getTime() : null; }).filter(function (x) { return x != null; }); grano = ts.length ? granoDe(Math.min.apply(null, ts), Math.max.apply(null, ts)) : 'mes'; }
+    var kx = function (f) { if (esFecha) { var d = aFecha(f[g.x]); return d ? claveTiempo(d, grano) : null; } var v = f[g.x]; return v == null || v === '' ? '(vacío)' : String(v); };
+    var mapa = new Map(), seriesSet = new Map();
+    filas.forEach(function (f) {
+      var k = kx(f); if (k == null) return;
+      var s = g.serie ? (f[g.serie] == null || f[g.serie] === '' ? '(vacío)' : String(f[g.serie])) : (g.y || 'Registros');
+      var clave = k + '\u0000' + s;
+      if (!mapa.has(clave)) mapa.set(clave, []);
+      mapa.get(clave).push(g.y ? f[g.y] : 1);
+      seriesSet.set(s, (seriesSet.get(s) || 0) + (aNumero(g.y ? f[g.y] : 1) || 0));
+    });
+    var claves = [...new Set([...mapa.keys()].map(function (c) { return c.split('\u0000')[0]; }))];
+    if (esFecha) claves.sort(); else {
+      var tot = new Map(); mapa.forEach(function (v, c) { var k = c.split('\u0000')[0]; tot.set(k, (tot.get(k) || 0) + agregar(v, g.agregacion)); });
+      claves.sort(function (a, b) { return tot.get(b) - tot.get(a); });
+    }
+    var nombres = [...seriesSet.entries()].sort(function (a, b) { return b[1] - a[1]; }).map(function (e) { return e[0]; });
+    var otros = null;
+    if (g.topeSerie && nombres.length > g.topeSerie + 1) { otros = nombres.slice(g.topeSerie); nombres = nombres.slice(0, g.topeSerie).concat(['Otros']); }
+    var series = nombres.map(function (s) {
+      var miembros = s === 'Otros' && otros ? otros : [s];
+      return { nombre: s, valores: claves.map(function (k) { var vals = []; miembros.forEach(function (m) { var v = mapa.get(k + '\u0000' + m); if (v) vals = vals.concat(v); }); return vals.length ? agregar(vals, g.agregacion) : (esFecha ? 0 : null); }) };
+    });
+    return { claves: claves, series: series, esFecha: esFecha, grano: grano };
+  }
+
+  // ---------- Formato (es-PE) ----------
+  var NF = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 1 });
+  var NF2 = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 2 });
+  var NC = new Intl.NumberFormat('es-PE', { notation: 'compact', maximumFractionDigits: 1 });
+  function formatear(v, formato, compacto) {
+    if (v == null || !isFinite(v)) return '—';
+    if (formato === 'porcentaje') { var x = Math.abs(v) <= 1.5 ? v * 100 : v; return NF.format(x) + ' %'; }
+    var s = (compacto === 'siempre' && v !== 0) || (compacto && Math.abs(v) >= 10000) ? NC.format(v) : Math.abs(v) < 100 ? NF2.format(v) : NF.format(Math.round(v));
+    return formato === 'moneda' ? 'S/ ' + s : s;
+  }
+  var formatoDe = function (col) { return /venta|monto|importe|total|ingreso|precio|soles|costo|gasto|pago/i.test(col || '') ? 'moneda' : /margen|%|porc|tasa/i.test(col || '') ? 'porcentaje' : 'numero'; };
+
+  // ---------- Dibujo ----------
+  function tokens(raiz) {
+    var cs = getComputedStyle(raiz), t = function (n) { return cs.getPropertyValue(n).trim(); };
+    return { sup: t('--t-superficie'), tinta: t('--t-tinta'), tinta2: t('--t-tinta-2'), apagada: t('--t-apagada'), rejilla: t('--t-rejilla'), eje: t('--t-eje'), gris: t('--t-gris'), bien: t('--t-sube-bien'), mal: t('--t-baja-mal'),
+      serie: [1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return t('--s' + i); }), seq: ['--q100', '--q250', '--q400', '--q550', '--q700'].map(t) };
+  }
+  function el(tag, cls, texto) { var e = document.createElement(tag); if (cls) e.className = cls; if (texto != null) e.textContent = texto; return e; }
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+
+  function montar(raiz, datos) {
+    // datos: { filas, perfil, plan (ya revisado), ajustes }
+    if (raiz.__tablero) raiz.__tablero.destruir();   // armar de nuevo: cerrar los gráficos y el observador anteriores
+    var estado = { filtros: {}, rango: 'todo', graficos: [] };
+    var plan = datos.plan, perfil = datos.perfil;
+    // color por entidad, fijo para todo el tablero: el orden sale de los datos completos, no del filtro
+    var colorDe = new Map();
+    function slot(nombre, T) { if (nombre === 'Otros') return T.gris; if (!colorDe.has(nombre)) colorDe.set(nombre, colorDe.size); var i = colorDe.get(nombre); return i < 8 ? T.serie[i] : T.gris; }
+    plan.graficos.forEach(function (g) { if (g.serie) agrupar(datos.filas, perfil, g).series.forEach(function (s) { if (s.nombre !== 'Otros' && !colorDe.has(s.nombre) && colorDe.size < 8) colorDe.set(s.nombre, colorDe.size); }); });
+
+    raiz.classList.add('tablero'); raiz.textContent = '';
+    var cab = el('header'); cab.appendChild(el('h1', null, plan.titulo)); if (plan.subtitulo) cab.appendChild(el('p', 't-sub', plan.subtitulo)); raiz.appendChild(cab);
+    if (datos.ajustes && datos.ajustes.length) {
+      var det = el('details', 't-ajustes'); det.appendChild(el('summary', null, 'Ajustes de diseño aplicados (' + datos.ajustes.length + ')'));
+      var ul = el('ul'); datos.ajustes.forEach(function (a) { ul.appendChild(el('li', null, a)); }); det.appendChild(ul); raiz.appendChild(det);
+    }
+    // filtros: una fila arriba de todo lo que afectan
+    var fila = el('div', 't-filtros'); raiz.appendChild(fila);
+    var colFecha = plan.filtros.map(function (f) { return colDe(perfil, f); }).find(function (c) { return c && c.tipo === 'fecha'; });
+    if (colFecha) {
+      var lab = el('label', null, 'Periodo'), sel = el('select');
+      [['todo', 'Todo'], ['ult30', 'Últimos 30 días'], ['ult90', 'Últimos 90 días'], ['anio', 'Último año'], ['mes', 'Último mes completo']].forEach(function (o) { var op = el('option', null, o[1]); op.value = o[0]; sel.appendChild(op); });
+      sel.addEventListener('change', function () { estado.rango = sel.value; pintar(); }); lab.appendChild(sel); fila.appendChild(lab);
+    }
+    plan.filtros.map(function (f) { return colDe(perfil, f); }).filter(function (c) { return c && c.tipo === 'categoria'; }).forEach(function (c) {
+      var lab = el('label', null, c.nombre), sel = el('select'), todos = el('option', null, 'Todas'); todos.value = ''; sel.appendChild(todos);
+      [...new Set(datos.filas.map(function (f) { return f[c.nombre]; }).filter(function (v) { return v != null && v !== ''; }).map(String))].sort().slice(0, 200).forEach(function (v) { var op = el('option', null, v); op.value = v; sel.appendChild(op); });
+      sel.addEventListener('change', function () { estado.filtros[c.nombre] = sel.value; pintar(); }); lab.appendChild(sel); fila.appendChild(lab);
+    });
+    var kpis = el('div', 't-kpis'); raiz.appendChild(kpis);
+    var grid = el('div', 't-graficos'); raiz.appendChild(grid);
+    raiz.appendChild(el('p', 't-nota', perfil.filas.toLocaleString('es-PE') + ' filas · los valores de cada gráfico están en su tabla (botón «Ver tabla»).'));
+
+    function filtradas() {
+      var fs = datos.filas;
+      Object.keys(estado.filtros).forEach(function (c) { var v = estado.filtros[c]; if (v) fs = fs.filter(function (f) { return String(f[c]) === v; }); });
+      if (colFecha && estado.rango !== 'todo') {
+        var ts = datos.filas.map(function (f) { var d = aFecha(f[colFecha.nombre]); return d ? d.getTime() : null; }).filter(function (x) { return x != null; });
+        var fin = Math.max.apply(null, ts), ini;
+        if (estado.rango === 'ult30') ini = fin - 29 * 864e5; else if (estado.rango === 'ult90') ini = fin - 89 * 864e5; else if (estado.rango === 'anio') ini = fin - 364 * 864e5;
+        else { var dfin = new Date(fin); var m = new Date(Date.UTC(dfin.getUTCFullYear(), dfin.getUTCMonth() - 1, 1)); ini = m.getTime(); fin = Date.UTC(dfin.getUTCFullYear(), dfin.getUTCMonth(), 1) - 1; }
+        fs = fs.filter(function (f) { var d = aFecha(f[colFecha.nombre]); return d && d.getTime() >= ini && d.getTime() <= fin; });
+      }
+      return fs;
+    }
+    // cifra con variación contra el periodo anterior (si hay fecha) y tendencia de 12 puntos
+    function cifra(k, fs, T) {
+      var vals = function (rows) { return k.columna ? rows.map(function (f) { return f[k.columna]; }) : rows; };
+      var v = agregar(vals(fs), k.agregacion);
+      var caja = el('div', 't-kpi'); caja.appendChild(el('div', 't-kpi-etq', k.etiqueta)); caja.appendChild(el('div', 't-kpi-val', formatear(v, k.formato, true)));
+      var pie = el('div', 't-kpi-pie'); caja.appendChild(pie);
+      if (colFecha) {
+        var porMes = new Map();
+        fs.forEach(function (f) { var d = aFecha(f[colFecha.nombre]); if (!d) return; var c = claveTiempo(d, 'mes'); if (!porMes.has(c)) porMes.set(c, []); porMes.get(c).push(k.columna ? f[k.columna] : 1); });
+        var meses = [...porMes.keys()].sort(), serie = meses.slice(-12).map(function (m) { return agregar(porMes.get(m), k.agregacion); });
+        if (serie.length >= 3) {
+          var a = serie[serie.length - 2], b = serie[serie.length - 1];   // último mes contra el anterior (el último puede estar en curso)
+          if (a) {
+            var pts = k.formato === 'porcentaje', esc100 = Math.abs(b) <= 1.5 ? 100 : 1;   // un porcentaje cambia en puntos, no en % de sí mismo
+            var cambio = pts ? (b - a) * esc100 : (b - a) / Math.abs(a), sube = cambio >= 0, bueno = (k.bueno === 'baja') ? !sube : sube;
+            var txtCambio = pts ? NF.format(Math.abs(cambio)) + ' pp' : NF.format(Math.abs(cambio) * 100) + ' %';
+            var dl = el('span', 't-delta ' + (Math.abs(cambio) < (pts ? 0.05 : 0.005) ? '' : bueno ? 'bien' : 'mal'));
+            dl.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="' + (sube ? 'M5 1 9 8H1Z' : 'M5 9 1 2h8Z') + '" fill="currentColor"/></svg>';
+            var bb = el('b', null, (sube ? '+' : '−') + txtCambio); dl.appendChild(bb); dl.appendChild(document.createTextNode(' vs ' + etiquetaTiempo(meses[meses.length - 2])));
+            dl.setAttribute('aria-label', (sube ? 'Sube ' : 'Baja ') + (pts ? NF.format(Math.abs(cambio)) + ' puntos' : NF.format(Math.abs(cambio) * 100) + ' por ciento') + ' contra ' + etiquetaTiempo(meses[meses.length - 2]) + (bueno ? ', es bueno' : ', es malo'));
+            pie.appendChild(dl);
+          }
+          var mx = Math.max.apply(null, serie), mn = Math.min.apply(null, serie), W = 72, H = 22, rg = mx - mn || 1;
+          var pts = serie.map(function (y, i) { return [(i / (serie.length - 1)) * (W - 4) + 2, H - 3 - ((y - mn) / rg) * (H - 6)]; });
+          var svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline fill="none" stroke="' + T.apagada + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" points="' + pts.map(function (p) { return p.join(','); }).join(' ') + '"/><circle cx="' + pts[pts.length - 1][0] + '" cy="' + pts[pts.length - 1][1] + '" r="3" fill="' + T.serie[0] + '" stroke="' + T.sup + '" stroke-width="1.5"/></svg>';
+          var sp = el('span'); sp.innerHTML = svg; pie.appendChild(sp);
+        }
+      }
+      return caja;
+    }
+    function opciones(g, A, T) {
+      var fmtY = g.y ? formatoDe(g.y) : 'numero';
+      var ejeTexto = { color: T.apagada, fontSize: 11 }, linea = { lineStyle: { color: T.eje } }, rejilla = { lineStyle: { color: T.rejilla, width: 1, type: 'solid' } };
+      var multi = A.series.length > 1;
+      var tip = {
+        backgroundColor: T.sup, borderColor: T.rejilla, borderWidth: 1, textStyle: { color: T.tinta, fontSize: 12 }, extraCssText: 'box-shadow:0 4px 14px rgba(0,0,0,.12);border-radius:8px;',
+        formatter: function (ps) {
+          ps = Array.isArray(ps) ? ps : [ps];
+          var titulo = ps[0] ? (A.esFecha ? etiquetaTiempo(A.claves[ps[0].dataIndex]) : ps[0].name) : '';
+          return '<div style="color:' + T.tinta2 + ';margin-bottom:4px">' + esc(titulo) + '</div>' + ps.filter(function (p) { return p.value != null; }).map(function (p) {
+            var v = Array.isArray(p.value) ? p.value[p.value.length - 1] : p.value;
+            return '<div style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:2px;background:' + p.color + ';display:inline-block"></span><b style="font-weight:600">' + esc(formatear(v, fmtY)) + '</b><span style="color:' + T.tinta2 + '">' + esc(p.seriesName) + '</span></div>';
+          }).join('');
+        },
+      };
+      var leyenda = multi ? { type: 'scroll', top: 0, left: 0, right: 0, icon: 'roundRect', itemWidth: 14, itemHeight: g.forma === 'linea' ? 3 : 10, itemGap: 14, textStyle: { color: T.tinta2, fontSize: 12 }, pageTextStyle: { color: T.tinta2 }, pageIconColor: T.tinta2, pageIconInactiveColor: T.eje } : { show: false };
+      var colorSerie = function (s) { if (g.enfasis && multi) return s.nombre === g.enfasis ? T.serie[0] : T.gris; return multi ? slot(s.nombre, T) : T.serie[0]; };
+      var gridO = { left: 8, right: g.forma === 'linea' && multi && A.series.length <= 4 ? 90 : 24, top: multi ? 32 : 12, bottom: 8, containLabel: true };
+      var ejeCat = function (claves) { return { type: 'category', data: claves.map(function (k) { return A.esFecha ? etiquetaTiempo(k) : k; }), axisLabel: Object.assign({ hideOverlap: true }, ejeTexto), axisLine: linea, axisTick: { show: false } }; };
+      // un solo estilo por eje: compacto en todo el eje si llega a 10 000 (0 / 5 k / 10 k), completo si no
+      var maxEje = 0; A.series.forEach(function (s) { (s.valores || []).forEach(function (v) { if (v != null) maxEje = Math.max(maxEje, Math.abs(v)); }); });
+      var ejeVal = { type: 'value', axisLabel: Object.assign({ formatter: function (v) { return formatear(v, fmtY, maxEje >= 10000 ? 'siempre' : false); } }, ejeTexto), splitLine: rejilla, axisLine: { show: false } };
+      if (g.forma === 'linea' || g.forma === 'area') {
+        return { grid: gridO, legend: leyenda, tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'line', lineStyle: { color: T.eje, width: 1 } } }, tip), xAxis: Object.assign(ejeCat(A.claves), { boundaryGap: false }), yAxis: ejeVal,
+          series: A.series.map(function (s) { var c = colorSerie(s); return { name: s.nombre, type: 'line', data: s.valores, showSymbol: false, symbolSize: 8, lineStyle: { width: 2, color: c, cap: 'round', join: 'round' }, itemStyle: { color: c, borderColor: T.sup, borderWidth: 2 }, emphasis: { focus: 'series' },
+            areaStyle: g.forma === 'area' ? { color: c, opacity: 0.1 } : undefined,
+            endLabel: multi && A.series.length <= 4 ? { show: true, formatter: '{a}', color: T.tinta2, fontSize: 11 } : undefined }; }) };
+      }
+      if (g.forma === 'barras' || g.forma === 'barras_h' || g.forma === 'apiladas') {
+        var horiz = g.forma === 'barras_h' || (g.forma === 'apiladas' && !A.esFecha);
+        var claves = A.claves, series = A.series;
+        if (horiz && !A.esFecha && claves.length > 15) {   // las 14 mayores + Otros
+          var resto = claves.slice(14); claves = claves.slice(0, 14).concat(['Otros']);
+          var sumable = ['suma', 'conteo'].indexOf(g.agregacion) > -1;   // un promedio o un máximo no se suman: se muestran las 14 mayores
+          if (!sumable) claves = claves.slice(0, 14);
+          series = series.map(function (s) { var r = s.valores.slice(14).reduce(function (a, b) { return a + (b || 0); }, 0); return { nombre: s.nombre, valores: sumable ? s.valores.slice(0, 14).concat([r]) : s.valores.slice(0, 14) }; });
+        }
+        var apila = g.forma === 'apiladas' || (multi && g.forma !== 'barras');
+        var etiqueta = !multi && claves.length <= 15;
+        var cat = ejeCat(claves);
+        if (horiz) { cat.inverse = true; cat.axisLabel.width = 120; cat.axisLabel.overflow = 'truncate'; cat.axisLine = { show: false }; }
+        var ejeV = Object.assign({}, ejeVal, { axisLabel: Object.assign({}, ejeVal.axisLabel, { show: !(horiz && etiqueta), hideOverlap: true }) });   // cada barra ya lleva su valor
+        return { grid: Object.assign(gridO, { right: etiqueta ? 56 : 16 }), legend: leyenda, tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: T.rejilla, opacity: 0.35 } } }, tip),
+          xAxis: horiz ? ejeV : cat, yAxis: horiz ? cat : ejeV,
+          series: series.map(function (s, i) { var c = colorSerie(s); var ult = i === series.length - 1;
+            return { name: s.nombre, type: 'bar', stack: apila ? 'total' : undefined, data: s.valores.map(function (v, j) { var col = !multi && g.enfasis ? (claves[j] === g.enfasis ? T.serie[0] : T.gris) : c; return { value: v, itemStyle: { color: col } }; }), barMaxWidth: 24, barCategoryGap: '30%',
+              itemStyle: { borderRadius: !apila || ult ? (horiz ? [0, 4, 4, 0] : [4, 4, 0, 0]) : 0, borderColor: T.sup, borderWidth: apila ? 1 : 0 },
+              label: etiqueta ? { show: true, position: horiz ? 'right' : 'top', color: T.tinta2, fontSize: 11, formatter: function (p) { return formatear(p.value, fmtY, true); } } : undefined,
+              emphasis: { itemStyle: { opacity: 0.85 } } }; }) };
+      }
+      if (g.forma === 'segmentada') {
+        var s0 = A.series[0], total = s0.valores.reduce(function (a, b) { return a + (b || 0); }, 0);
+        return { grid: { left: 8, right: 8, top: 36, bottom: 8, containLabel: false }, legend: Object.assign({}, leyenda, { show: true, data: A.claves }), tooltip: Object.assign({ trigger: 'item' }, tip), xAxis: { type: 'value', max: total, show: false }, yAxis: { type: 'category', data: [''], show: false },
+          series: A.claves.map(function (k, i) { var v = s0.valores[i]; return { name: k, type: 'bar', stack: 't', barWidth: 56, data: [v], itemStyle: { color: slot(k, T), borderColor: T.sup, borderWidth: 1, borderRadius: i === 0 ? [4, 0, 0, 4] : i === A.claves.length - 1 ? [0, 4, 4, 0] : 0 },
+            label: { show: v / total > 0.09, position: 'inside', color: slot(k, T) === T.serie[3] ? '#0b0b0b' : '#ffffff', fontSize: 12, fontWeight: 600, formatter: function () { return NF.format((v / total) * 100) + ' %'; } } }; }) };
+      }
+      if (g.forma === 'heatmap') {
+        var filasH = A.series.map(function (s) { return s.nombre; }), datosH = [], max = 0;
+        A.series.forEach(function (s, yi) { s.valores.forEach(function (v, xi) { if (v != null) { datosH.push([xi, yi, v]); max = Math.max(max, v); } }); });
+        return { grid: Object.assign(gridO, { top: 8, bottom: 44 }), tooltip: { trigger: 'item', backgroundColor: T.sup, borderColor: T.rejilla, textStyle: { color: T.tinta }, formatter: function (p) { return '<b>' + esc(formatear(p.value[2], fmtY)) + '</b><br><span style="color:' + T.tinta2 + '">' + esc(filasH[p.value[1]]) + ' · ' + esc(A.esFecha ? etiquetaTiempo(A.claves[p.value[0]]) : A.claves[p.value[0]]) + '</span>'; } },
+          xAxis: (function () { var e = ejeCat(A.claves); e.axisLabel.interval = 0; e.axisLabel.hideOverlap = false; e.axisLabel.width = 72; e.axisLabel.overflow = 'break'; return e; })(), yAxis: { type: 'category', data: filasH, axisLabel: ejeTexto, axisLine: { show: false }, axisTick: { show: false } },
+          visualMap: { min: 0, max: max || 1, calculable: false, text: [formatear(max, fmtY, true), '0'], textGap: 8, orient: 'horizontal', left: 'center', bottom: 0, itemHeight: 120, itemWidth: 10, inRange: { color: T.seq }, textStyle: { color: T.apagada, fontSize: 11 }, formatter: function (v) { return formatear(v, fmtY, true); } },
+          series: [{ type: 'heatmap', data: datosH, itemStyle: { borderColor: T.sup, borderWidth: 2, borderRadius: 3 }, emphasis: { itemStyle: { borderColor: T.tinta, borderWidth: 1 } } }] };
+      }
+      if (g.forma === 'dispersion') {
+        return { grid: gridO, legend: leyenda, tooltip: Object.assign({ trigger: 'item' }, tip), xAxis: Object.assign({}, ejeVal, { name: g.x, nameLocation: 'middle', nameGap: 26, nameTextStyle: { color: T.tinta2 }, axisLabel: Object.assign({}, ejeTexto) }), yAxis: Object.assign({}, ejeVal, { name: g.y, nameTextStyle: { color: T.tinta2 } }),
+          series: A.series.map(function (s) { return { name: s.nombre, type: 'scatter', symbolSize: 9, data: s.puntos, itemStyle: { color: colorSerie(s), borderColor: T.sup, borderWidth: 2, opacity: 0.85 } }; }) };
+      }
+      return null;
+    }
+    function puntosDispersion(fs, g) {
+      var grupos = new Map();
+      fs.forEach(function (f) { var x = aNumero(f[g.x]), y = aNumero(f[g.y]); if (x == null || y == null) return; var s = g.serie ? String(f[g.serie]) : g.y; if (!grupos.has(s)) grupos.set(s, []); if (grupos.get(s).length < 3000) grupos.get(s).push([x, y]); });
+      var orden = [...grupos.entries()].sort(function (a, b) { return b[1].length - a[1].length; });
+      if (orden.length > 3) { var otros = orden.slice(2).reduce(function (a, e) { return a.concat(e[1]); }, []); orden = orden.slice(0, 2).concat([['Otros', otros]]); }
+      return { claves: [], esFecha: false, series: orden.map(function (e) { return { nombre: e[0], puntos: e[1], valores: [] }; }) };
+    }
+    function tablaDe(g, A, fs) {
+      var t = el('table', 't-tabla'), thead = el('thead'), tr = el('tr'), tb = el('tbody');
+      if (g.forma === 'tabla') {
+        var cols = perfil.columnas.filter(function (c) { return c.tipo !== 'id'; }).slice(0, 8);
+        cols.forEach(function (c) { tr.appendChild(el('th', c.tipo === 'numero' ? 'n' : null, c.nombre)); });
+        var rows = fs.slice(); if (g.y) rows.sort(function (a, b) { return (aNumero(b[g.y]) || 0) - (aNumero(a[g.y]) || 0); });
+        rows.slice(0, 50).forEach(function (f) { var r = el('tr'); cols.forEach(function (c) { var v = f[c.nombre]; var txt = c.tipo === 'numero' ? formatear(aNumero(v), formatoDe(c.nombre)) : c.tipo === 'fecha' ? (aFecha(v) ? aFecha(v).toISOString().slice(0, 10) : '') : (v == null ? '' : String(v)); r.appendChild(el('td', c.tipo === 'numero' ? 'n' : null, txt)); }); tb.appendChild(r); });
+      } else if (g.forma === 'dispersion') {
+        [g.x, g.y, g.serie || ''].forEach(function (h, i) { tr.appendChild(el('th', i < 2 ? 'n' : null, h)); });
+        A.series.forEach(function (s) { s.puntos.slice(0, 200).forEach(function (p) { var r = el('tr'); r.appendChild(el('td', 'n', NF2.format(p[0]))); r.appendChild(el('td', 'n', NF2.format(p[1]))); r.appendChild(el('td', null, g.serie ? s.nombre : '')); tb.appendChild(r); }); });
+      } else {
+        tr.appendChild(el('th', null, g.x)); A.series.forEach(function (s) { tr.appendChild(el('th', 'n', s.nombre)); });
+        A.claves.forEach(function (k, i) { var r = el('tr'); r.appendChild(el('td', null, A.esFecha ? etiquetaTiempo(k) : k)); A.series.forEach(function (s) { r.appendChild(el('td', 'n', formatear(s.valores[i], g.y ? formatoDe(g.y) : 'numero'))); }); tb.appendChild(r); });
+      }
+      thead.appendChild(tr); t.appendChild(thead); t.appendChild(tb);
+      var caja = el('div', 't-tabla-caja'); caja.appendChild(t); return caja;
+    }
+
+    function pintar() {
+      var T = tokens(raiz), fs = filtradas();
+      estado.graficos.forEach(function (c) { c.dispose(); }); estado.graficos = [];
+      kpis.textContent = ''; grid.textContent = '';
+      plan.kpis.forEach(function (k) { kpis.appendChild(cifra(k, fs, T)); });
+      if (!fs.length) { var v = el('div', 't-card ancho t-vacio', 'Ningún dato cumple estos filtros. Cambia el periodo o elige «Todas».'); grid.appendChild(v); return; }
+      plan.graficos.forEach(function (g, i) {
+        var card = el('section', 't-card' + (g.forma === 'tabla' || (g.forma === 'linea' && i === 0) ? ' ancho' : '')); card.setAttribute('aria-label', g.titulo);
+        var hd = el('header'), tx = el('div'); tx.appendChild(el('h2', null, g.titulo || (g.y || 'Registros') + ' por ' + g.x)); if (g.pregunta) tx.appendChild(el('p', null, g.pregunta)); hd.appendChild(tx);
+        card.appendChild(hd); grid.appendChild(card);
+        if (g.forma === 'tabla') { card.appendChild(tablaDe(g, null, fs)); return; }
+        if (estado.filtros[g.x] && g.forma !== 'heatmap') { card.appendChild(el('div', 't-vacio', 'Con «' + g.x + '» = ' + estado.filtros[g.x] + ' este gráfico tendría una sola barra: el valor está en las cifras de arriba. Elige «Todas» para comparar.')); return; }
+        var A = g.forma === 'dispersion' ? puntosDispersion(fs, g) : agrupar(fs, perfil, g);
+        var btn = el('button', 't-btn', 'Ver tabla'); btn.type = 'button'; btn.setAttribute('aria-pressed', 'false'); hd.appendChild(btn);
+        var lienzo = el('div', 't-lienzo'); lienzo.setAttribute('role', 'img'); lienzo.setAttribute('aria-label', (g.titulo || '') + '. Los valores están en «Ver tabla».');
+        if (g.forma === 'segmentada') lienzo.style.height = '120px';
+        if (g.forma === 'barras_h') lienzo.style.height = Math.max(160, Math.min(15, A.claves.length) * 30 + 40) + 'px';
+        if (g.forma === 'heatmap') lienzo.style.height = Math.max(200, A.series.length * 36 + 70) + 'px';
+        card.appendChild(lienzo);
+        var tabla = null;
+        btn.addEventListener('click', function () { var ver = btn.getAttribute('aria-pressed') !== 'true'; btn.setAttribute('aria-pressed', String(ver)); btn.textContent = ver ? 'Ver gráfico' : 'Ver tabla'; if (ver && !tabla) { tabla = tablaDe(g, A, fs); card.appendChild(tabla); } if (tabla) tabla.hidden = !ver; lienzo.hidden = ver; if (!ver) estado.graficos.forEach(function (c) { c.resize(); }); });
+        var op = opciones(g, A, T);
+        if (!op || !window.echarts) { lienzo.replaceWith(tablaDe(g, A, fs)); btn.remove(); return; }
+        var ch = echarts.init(lienzo, null, { renderer: 'svg' }); ch.setOption(Object.assign({ animationDuration: 500, animationEasing: 'cubicOut', textStyle: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' }, aria: { enabled: true } }, op));
+        estado.graficos.push(ch);
+      });
+    }
+    pintar();
+    var ro = new ResizeObserver(function () { estado.graficos.forEach(function (c) { c.resize(); }); }); ro.observe(raiz);
+    raiz.__tablero = { repintar: pintar, destruir: function () { ro.disconnect(); estado.graficos.forEach(function (c) { c.dispose(); }); estado.graficos = []; } };
+    return raiz.__tablero;
+  }
+
+  window.Tablero = { perfilar: perfilar, proponer: proponer, revisar: revisar, montar: montar, FORMAS: FORMAS };
+})();
+</script>
+<script type="module">
+import { App } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js';
+const $ = (id) => document.getElementById(id);
+const P = window.RA_prov;
+const CEREBRO_URL = '__CEREBRO_URL__';
+const fmt = (n) => Math.round(n).toLocaleString('es-PE');
+const estado = { consulta: { claude: 0, externo: 0, evitado: 0, costo: 0 }, filas: null, perfil: null, plan: null, ajustes: [], nombreArchivo: '', enCurso: false, vista: null };
+function pintarMedidor() { const m = estado.consulta, max = Math.max(m.claude, m.externo, m.evitado, 1); const fila = (n, v, c) => `<span>${n}</span><span class="barra"><i style="width:${(v / max) * 100}%;background:${c}"></i></span><span class="cifra">${fmt(v)}</span>`; $('medidor').innerHTML = fila('Claude ≈', m.claude, '#c2622d') + fila('Externo', m.externo, 'var(--accent)') + fila('Evitado', m.evitado, 'var(--ok)'); }
+const sumar = (d) => { for (const k in d) estado.consulta[k] += d[k]; pintarMedidor(); };
+function mostrarEstado(t) { $('estado').hidden = !t; $('estado-texto').textContent = t || ''; }
+function mostrarError(t) { $('error').hidden = !t; $('error').textContent = t || ''; }
+
+// ---- Datos ----
+$('zona').addEventListener('click', () => $('archivo').click());
+$('zona').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('archivo').click(); } });
+for (const ev of ['dragenter', 'dragover']) $('zona').addEventListener(ev, (e) => { e.preventDefault(); $('zona').classList.add('sobre'); });
+for (const ev of ['dragleave', 'drop']) $('zona').addEventListener(ev, (e) => { e.preventDefault(); $('zona').classList.remove('sobre'); });
+$('zona').addEventListener('drop', (e) => cargar(e.dataTransfer?.files?.[0]));
+$('archivo').addEventListener('change', (e) => cargar(e.target.files?.[0]));
+async function cargar(f) {
+  if (!f) return; mostrarError('');
+  try {
+    const libro = XLSX.read(await f.arrayBuffer(), { cellDates: true });
+    const hoja = libro.Sheets[libro.SheetNames[0]];
+    const filas = XLSX.utils.sheet_to_json(hoja, { defval: null, raw: true });
+    if (!filas.length) throw new Error('la primera hoja está vacía');
+    usarDatos(filas.slice(0, 100000), f.name);
+    sumar({ evitado: f.size / 3.8 });
+  } catch (e) { mostrarError('No se pudo leer el archivo: ' + e.message); }
+}
+function usarDatos(filas, nombre) {
+  estado.filas = filas; estado.nombreArchivo = nombre; estado.perfil = Tablero.perfilar(filas);
+  const tipos = estado.perfil.columnas.map((c) => `${c.nombre} (${c.tipo})`).join(', ');
+  $('resumen-datos').hidden = false; $('resumen-datos').textContent = `${nombre}: ${filas.length.toLocaleString('es-PE')} filas. Columnas: ${tipos}.`;
+}
+// Datos de ejemplo: ventas de una cadena de boticas en 2026, generados con semilla fija (siempre los mismos).
+function ejemplo() {
+  let s = 20261121; const azar = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const sedes = [['Lima Centro', 1.25], ['Miraflores', 1.1], ['Surco', 0.95], ['Arequipa', 0.8]];
+  const cats = [['Medicamentos', 52, 0.28], ['Cuidado personal', 24, 0.38], ['Bebés', 31, 0.33], ['Suplementos', 45, 0.41], ['Dermocosmética', 68, 0.45]];
+  const filas = [];
+  for (let d = Date.UTC(2026, 0, 1); d <= Date.UTC(2026, 9, 31); d += 864e5) {
+    const fecha = new Date(d), estacion = 1 + 0.18 * Math.sin((fecha.getUTCMonth() / 12) * Math.PI * 2 + 1.2), finde = [0, 6].includes(fecha.getUTCDay()) ? 1.25 : 1;
+    for (const [sede, fs] of sedes) for (const [categoria, precio, margen] of cats) {
+      const unidades = Math.max(0, Math.round((8 + azar() * 14) * fs * estacion * finde * (categoria === 'Medicamentos' ? 2.2 : 1)));
+      filas.push({ fecha: fecha.toISOString().slice(0, 10), sede, categoria, unidades, venta: Math.round(unidades * precio * (0.9 + azar() * 0.2) * 100) / 100, margen: Math.round((margen + (azar() - 0.5) * 0.06 - (sede === 'Arequipa' ? 0.04 : 0)) * 1000) / 1000 });
+    }
+  }
+  usarDatos(filas, 'ventas-boticas-2026 (ejemplo)');
+  if (!$('objetivo').value.trim()) $('objetivo').value = 'Ver qué sede y qué categoría venden más, cómo van las ventas mes a mes y dónde baja el margen.';
+}
+$('btn-ejemplo').addEventListener('click', ejemplo);
+
+// ---- Plan ----
+const SISTEMA = `Eres diseñador de tableros de datos. Con el perfil de columnas y la decisión que el tablero debe apoyar, devuelve SOLO un JSON válido:
+{"titulo":"frase corta que dice qué responde el tablero","subtitulo":"una línea: de qué datos sale y qué periodo cubre",
+ "kpis":[{"etiqueta":"...","columna":"nombre exacto o null para contar filas","agregacion":"suma|promedio|conteo|max|min|distintos","formato":"numero|moneda|porcentaje","bueno":"sube|baja"}],
+ "graficos":[{"titulo":"...","pregunta":"la pregunta que responde, en una línea","forma":"linea|area|barras|barras_h|apiladas|segmentada|heatmap|dispersion|tabla","x":"columna","y":"columna numérica o null para contar","serie":"columna o null","agregacion":"suma|promedio|conteo|max|min|distintos","enfasis":"valor a resaltar o null"}],
+ "filtros":["columnas de fecha o categoría"]}
+Reglas de diseño (de las mejores guías de visualización):
+- Primero la forma según el trabajo del dato: tendencia en el tiempo = linea (area si es una sola serie); comparar cantidades = barras_h ordenadas; parte de un todo con 6 partes o menos = segmentada; cruce de dos categorías = heatmap; relación entre dos números = dispersion; detalle = tabla.
+- Nunca torta, dona, 3D ni dos ejes Y. Un número solo va como kpi, no como gráfico de una barra.
+- De 2 a 4 kpis: las cifras que la decisión necesita, con "bueno" correcto (un costo o una merma es "baja").
+- De 3 a 6 gráficos, cada uno responde una pregunta distinta de la decisión. Máximo 6 series por gráfico (3 en dispersion).
+- Si la historia es una sola categoría frente al resto, usa "enfasis" con ese valor.
+- Primero el filtro de fecha si existe; luego hasta 3 categorías con pocas opciones.
+- Usa los nombres de columna exactos. Textos en español, en minúscula de frase, sin signos de dos puntos al final. Sin texto fuera del JSON.`;
+const resumen = () => JSON.stringify({ archivo: estado.nombreArchivo, filas: estado.perfil.filas, columnas: estado.perfil.columnas, muestra: estado.filas.slice(0, 10) }).slice(0, 12000);
+async function pedirPlan(extra) {
+  const objetivo = $('objetivo').value.trim() || 'Resumen general de los datos';
+  const usuario = `Decisión que debe apoyar el tablero: ${objetivo}\nPerfil de los datos: ${resumen()}` + (extra ? `\n\nPlan actual: ${JSON.stringify(estado.plan)}\nCambio pedido: ${extra}\nDevuelve el plan completo corregido.` : '');
+  const r = await P.llamarConRespaldo({ tarea: 'codigo', mensajes: [{ role: 'system', content: SISTEMA }, { role: 'user', content: usuario }], maxTokens: 3000, stream: false, alPaso: (p) => mostrarEstado(p) });
+  const m = r.texto.match(/\{[\s\S]*\}/); if (!m) throw new Error('el modelo no devolvió un plan válido');
+  const u = r.usage || {}; const ext = (u.prompt_tokens || 0) + (u.completion_tokens || 0) || Math.round((usuario.length + r.texto.length) / 3.8); sumar({ externo: ext, evitado: ext, costo: u.cost || 0 });
+  $('modelo').textContent = `${r.proveedor} · ${r.modelo}`;
+  return JSON.parse(m[0]);
+}
+function dibujar(planCrudo) {
+  const { plan, ajustes } = Tablero.revisar(planCrudo, estado.perfil);
+  estado.plan = plan; estado.ajustes = ajustes;
+  $('caja-tablero').hidden = false;
+  estado.vista = Tablero.montar($('tablero-raiz'), { filas: estado.filas, perfil: estado.perfil, plan, ajustes });
+  recordar();
+}
+// Memoria por llamada: al volver con el scroll el host monta el panel de nuevo; el tablero vuelve igual, sin otra
+// llamada al modelo. Los datos del ejemplo se regeneran (semilla fija); los de un archivo se guardan si caben.
+function recordar() {
+  if (!estado.clave || !estado.plan) return;
+  const esEjemplo = estado.nombreArchivo.includes('(ejemplo)');
+  const filas = esEjemplo ? null : (JSON.stringify(estado.filas).length < 20e6 ? estado.filas : null);
+  P.memoria?.guardar(estado.clave, { plan: estado.plan, ajustes: estado.ajustes, objetivo: $('objetivo').value, ejemplo: esEjemplo, filas, nombre: estado.nombreArchivo, consulta: estado.consulta, modelo: $('modelo').textContent });
+}
+async function armar(conModelo) {
+  if (estado.enCurso) return; mostrarError('');
+  if (!estado.filas) return mostrarError('Primero suelta un Excel o CSV, o usa los datos de ejemplo.');
+  estado.enCurso = true; $('btn-armar').disabled = true;
+  try {
+    let plan;
+    if (conModelo && P.configurados().length) { mostrarEstado('Diseñando el tablero…'); plan = await pedirPlan(); }
+    else { if (conModelo) $('modelo').textContent = 'sin proveedores: propuesta automática'; plan = Tablero.proponer(estado.perfil, $('objetivo').value.trim()); }
+    dibujar(plan);
+    guardarEnCerebro(`Tablero: ${plan.titulo || estado.nombreArchivo}`, JSON.stringify(estado.plan));
+  } catch (e) { mostrarError(e.message + ' — puedes usar «Armar sin modelo».'); }
+  finally { estado.enCurso = false; $('btn-armar').disabled = false; mostrarEstado(''); }
+}
+$('btn-armar').addEventListener('click', () => armar(true));
+$('btn-sin-modelo').addEventListener('click', () => armar(false));
+$('btn-mejorar').addEventListener('click', async () => {
+  const pedido = $('pedido-mejora').value.trim(); if (!pedido || !estado.plan || estado.enCurso) return;
+  if (!P.configurados().length) return mostrarError('Para pedir cambios hace falta un proveedor. Pide a Claude «research-academy configurar».');
+  estado.enCurso = true; mostrarError('');
+  try { mostrarEstado('Aplicando el cambio…'); dibujar(await pedirPlan(pedido)); $('pedido-mejora').value = ''; }
+  catch (e) { mostrarError(e.message); } finally { estado.enCurso = false; mostrarEstado(''); }
+});
+
+// ---- Exportar ----
+const nombreArchivo = () => (estado.plan?.titulo || 'tablero').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 60) || 'tablero';
+function htmlSuelto() {
+  const seguro = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
+  const filas = estado.filas.slice(0, 50000).map((f) => { const o = {}; for (const k in f) o[k] = f[k] instanceof Date ? f[k].toISOString().slice(0, 10) : f[k]; return o; });
+  const titulo = String(estado.plan.titulo).replace(/[<&]/g, (c) => ({ '<': '&lt;', '&': '&amp;' }[c]));
+  return `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${titulo}</title>
+<style>${document.getElementById('estilo-tablero').textContent}
+html, body { margin: 0; background: #f9f9f7; } @media (prefers-color-scheme: dark) { html, body { background: #0d0d0d; } } body { padding: 16px; } .tablero { max-width: 1280px; margin: 0 auto; }</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.6.0/echarts.min.js"><\/script>
+<script>${document.getElementById('motor-tablero').textContent}<\/script>
+</head><body><main id="raiz"></main>
+<script>
+var DATOS = { filas: ${seguro(filas)}, plan: ${seguro(estado.plan)}, ajustes: [] };
+DATOS.perfil = Tablero.perfilar(DATOS.filas);
+Tablero.montar(document.getElementById('raiz'), DATOS);
+<\/script></body></html>`;
+}
+async function subir(nombre, blob) { const r = await fetch(`${CEREBRO_URL}/archivo`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Nombre': encodeURIComponent(nombre) }, body: blob }); const j = await r.json(); if (!r.ok) throw new Error(j.error || `servidor respondió ${r.status}`); $('nota').hidden = false; $('nota').innerHTML = ''; const a = document.createElement('a'); a.className = 'enlace'; a.href = j.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = j.nombre; $('nota').append('Descarga: ', a, ' (24 h)'); try { if (app.openLink) await app.openLink({ url: j.url }); } catch {} }
+$('btn-html').addEventListener('click', async () => { if (!estado.plan) return; try { await subir(`${nombreArchivo()}.html`, new Blob([htmlSuelto()], { type: 'text/html' })); } catch (e) { $('nota').hidden = false; $('nota').textContent = 'No se pudo preparar la descarga: ' + e.message; } });
+$('btn-plan').addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(estado.plan, null, 1)); $('nota').hidden = false; $('nota').textContent = 'Plan copiado.'; } catch {} });
+$('btn-claude').addEventListener('click', async () => {
+  const texto = `Tablero hecho en el panel (ECharts). Decisión: ${$('objetivo').value.trim()}\nColumnas: ${JSON.stringify(estado.perfil?.columnas || []).slice(0, 3000)}\nPlan: ${JSON.stringify(estado.plan).slice(0, 3000)}\n\nRevisa si el tablero responde la decisión y sugiere cambios concretos.`;
+  const caps = app.getHostCapabilities?.() || {}; $('nota').hidden = false;
+  try { if (caps.message && app.sendMessage) { await app.sendMessage({ role: 'user', content: [{ type: 'text', text: texto }] }); sumar({ claude: texto.length / 3.8 }); $('nota').textContent = 'Enviado al chat; esto sí gasta tokens de Claude.'; } else { await navigator.clipboard.writeText(texto); $('nota').textContent = 'Copiado: pégalo en el chat.'; } } catch (e) { $('nota').textContent = 'No se pudo enviar: ' + e.message; }
+});
+async function guardarEnCerebro(pregunta, respuesta) {
+  const frase = P.guardado.leer('ra-cerebro-frase'); if (!frase || (P.guardado.leer('ra-cerebro-auto') ?? '1') !== '1') return;
+  const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t).trim().normalize('NFC'))))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const ahora = new Date().toISOString();
+  const nota = { id: `t_${Date.now().toString(36)}`, fecha: ahora, actualizado: ahora, modo: 'tablero', pregunta, respuesta: respuesta.slice(0, 8000), fuentes: [], tema: pregunta.slice(0, 50), hallazgos: [`${estado.plan.graficos.length} gráficos`, `${estado.plan.kpis.length} cifras`], etiquetas: ['tablero'] };
+  let notas = []; try { notas = JSON.parse(P.guardado.leer('ra-cerebro-notas') || '[]'); } catch {}
+  notas.unshift(nota); P.guardado.escribir('ra-cerebro-notas', JSON.stringify(notas));
+  try { const id = await sha(frase), url = `${CEREBRO_URL}/cerebro/${id}`; const remoto = await (await fetch(url, { cache: 'no-store' })).json(); const porId = new Map(); for (const n of [...(remoto.notas || []), ...notas]) { const p = porId.get(n.id); if (!p || String(n.actualizado || '') > String(p.actualizado || '')) porId.set(n.id, n); } const todas = [...porId.values()]; P.guardado.escribir('ra-cerebro-notas', JSON.stringify(todas)); await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notas: todas }) }); } catch {}
+}
+
+// ---- Host ----
+const app = new App({ name: 'research-academy-tablero', version: '0.1.0' });
+let entradaChars = 0;
+app.ontoolinput = (p) => { entradaChars = JSON.stringify(p?.arguments || {}).length; };
+app.ontoolresult = (r) => {
+  const sc = r?.structuredContent || {}; const salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
+  estado.consulta = { claude: 0, externo: 0, evitado: 0, costo: 0 }; sumar({ claude: (entradaChars + salidaChars) / 3.8 + 45 });
+  if (sc.objetivo) $('objetivo').value = sc.objetivo;
+  (async () => {
+    estado.clave = P.memoria ? await P.memoria.clave(app, 'tablero', sc) : null;
+    const f = estado.clave ? await P.memoria.leer(estado.clave) : null;
+    if (f?.plan && (f.ejemplo || f.filas)) {
+      if (f.ejemplo) ejemplo(); else usarDatos(f.filas, f.nombre);
+      $('objetivo').value = f.objetivo || ''; $('modelo').textContent = f.modelo || ''; if (f.consulta) { estado.consulta = f.consulta; pintarMedidor(); }
+      estado.plan = f.plan; estado.ajustes = f.ajustes || []; $('caja-tablero').hidden = false;
+      estado.vista = Tablero.montar($('tablero-raiz'), { filas: estado.filas, perfil: estado.perfil, plan: estado.plan, ajustes: estado.ajustes });
+      return;
+    }
+    if (sc.ejemplo) { ejemplo(); armar(true); }
+  })();
+};
+const tema = (t) => { if (t === 'light' || t === 'dark') { document.documentElement.dataset.theme = t; estado.vista?.repintar(); } };
+app.onhostcontextchanged = (c) => tema(c?.theme);
+window.__raTablero = { ejemplo, armar, usarDatos, htmlSuelto, estado: () => estado };   // pruebas: sin host ni modelo
+pintarMedidor();
+try { await app.connect(); tema(app.getHostContext?.()?.theme); } catch (e) { mostrarError('No se pudo conectar con el host: ' + e.message); }
+</script>
+</body>
+</html>

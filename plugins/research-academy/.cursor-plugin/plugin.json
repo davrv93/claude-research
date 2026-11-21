@@ -1,7 +1,7 @@
 {
   "name": "research-academy",
   "displayName": "Research Academy",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Investigacion eficiente, documentos, codigo y planes de trabajo para alumnos de JMD Learning, en espanol. Incluye el panel research-academy-panel (MCP App), que Cursor dibuja en el chat.",
   "author": {"name": "JMD Learning"},
   "homepage": "https://github.com/davrv93/claude-research",

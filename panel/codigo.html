@@ -93,6 +93,7 @@ async function generar() {
     sumar({ externo: ext, evitado: ext, costo: u.cost || 0 });
     $('uso').textContent = `entrada ${fmt(u.prompt_tokens || 0)} · salida ${fmt(u.completion_tokens || 0)} tokens${u.cost != null ? ` · costo $${(u.cost || 0).toFixed(4)}` : ''}`;
     guardarEnCerebro(`${accion} ${lenguaje}: ${instruccion.slice(0, 80) || 'código pegado'}`, estado.ultimo);
+    if (estado.clave) P.memoria?.guardar(estado.clave, { ultimo: estado.ultimo, lenguaje, modelo: $('modelo').textContent, uso: $('uso').textContent, consulta: estado.consulta });
   } catch (e) { $('salida').classList.remove('flujo'); mostrarError(e.message); }
   finally { estado.enCurso = false; $('btn-generar').disabled = false; mostrarEstado(''); }
 }
@@ -172,7 +173,13 @@ app.ontoolresult = (r) => {
   const sc = r?.structuredContent || {}; const salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
   estado.consulta = { claude: 0, externo: 0, evitado: 0, costo: 0 }; sumar({ claude: (entradaChars + salidaChars) / 3.8 + 45 });
   if (sc.accion) $('accion').value = sc.accion; if (sc.lenguaje) $('lenguaje').value = sc.lenguaje; if (sc.instruccion) $('instruccion').value = sc.instruccion; if (sc.codigo) $('codigo').value = sc.codigo;
-  if (sc.instruccion || sc.codigo) generar();
+  // memoria por llamada: al volver a montarse (scroll), se pinta lo ya generado en vez de pedirlo otra vez
+  (async () => {
+    estado.clave = P.memoria ? await P.memoria.clave(app, 'codigo', sc) : null;
+    const f = estado.clave ? await P.memoria.leer(estado.clave) : null;
+    if (f) { estado.ultimo = f.ultimo; estado.ultimoLenguaje = f.lenguaje; $('resultado').hidden = false; $('salida').textContent = f.ultimo; $('modelo').textContent = f.modelo || ''; $('uso').textContent = f.uso || ''; if (f.consulta) { estado.consulta = f.consulta; pintarMedidor(); } return; }
+    if (sc.instruccion || sc.codigo) generar();
+  })();
 };
 app.onhostcontextchanged = (c) => { if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; };
 pintarMedidor();

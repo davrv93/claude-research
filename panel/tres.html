@@ -19,11 +19,12 @@
 
   <section class="caja">
     <h2>Objeto</h2>
-    <textarea id="descripcion" placeholder="Describe el objeto: una silla de madera con respaldo curvo; un dron de 4 hélices; una casa pequeña con techo rojo…"></textarea>
+    <textarea id="descripcion" placeholder="Describe el objeto: una muela con sus raíces; una silla de madera con respaldo curvo; un dron de 4 hélices…"></textarea>
     <div class="zona" id="zona" tabindex="0"><b>Foto de referencia</b> (opcional): suelta una imagen o haz clic</div><input type="file" id="imagen" hidden accept=".png,.jpg,.jpeg,.webp">
     <img id="ref" alt="Referencia">
     <div class="fila">
       <label class="check">Estilo <select id="estilo"><option value="realista">realista</option><option value="lowpoly">low poly</option><option value="juguete">juguete</option><option value="esquema">esquema técnico</option></select></label>
+      <label class="check">Calidad <select id="calidad"><option value="estudio">estudio</option><option value="rapida">rápida</option></select></label>
       <label class="check">Animación <select id="anim"><option value="girar">girar</option><option value="flotar">flotar</option><option value="ninguna">ninguna</option></select></label>
       <label class="check">Piezas máx. <input id="max-piezas" type="number" min="4" max="60" value="24" style="width:4.5rem"></label>
       <button class="primario" id="btn-generar">Generar 3D</button>
@@ -51,7 +52,7 @@
   <section class="caja">
     <h2>Consumo</h2>
     <div class="medidor" id="medidor"></div>
-    <p class="nota">La geometría la arma el panel con three.js a partir de un JSON de piezas que escribe el modelo gratuito; la foto se envía solo al modelo con visión.</p>
+    <p class="nota">La geometría la arma el panel con three.js (torno, extrusión, tubos y formas fundidas, luz de estudio y oclusión ambiental) a partir de un JSON de piezas que escribe el modelo gratuito; la foto se envía solo al modelo con visión.</p>
   </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -78,10 +79,21 @@ $('zona').addEventListener('drop', (e) => cargarImagen(e.dataTransfer?.files?.[0
 $('imagen').addEventListener('change', (e) => cargarImagen(e.target.files?.[0]));
 async function cargarImagen(f) { if (!f) return; const buf = await f.arrayBuffer(); const b64 = btoa(String.fromCharCode(...new Uint8Array(buf))); const mime = f.type || 'image/jpeg'; estado.imagen = `data:${mime};base64,${b64}`; $('ref').src = estado.imagen; $('ref').style.display = 'block'; sumar({ evitado: buf.byteLength / 3.8 }); }
 
-// ---- Escena: JSON de piezas que escribe el modelo ----
-const SISTEMA = (max, estilo) => `Eres un modelador 3D. Describe el objeto pedido como composición de primitivas para three.js. Devuelve SOLO un JSON válido:
-{"nombre":"...","fondo":"#hex","piso":true,"piezas":[{"nombre":"...","tipo":"box|sphere|cylinder|cone|torus|capsule|plane","pos":[x,y,z],"rot":[rx,ry,rz],"escala":[sx,sy,sz],"color":"#hex","material":"mate|brillante|metal|vidrio"}]}
-Unidades en metros, el objeto centrado en el origen y apoyado en y=0 (su base en y=0). Rotaciones en radianes. Máximo ${max} piezas; usa las necesarias para que se reconozca. Estilo: ${estilo}. Colores coherentes. Sin texto fuera del JSON.`;
+// ---- Escena: JSON de piezas que escribe el modelo (solo datos: el panel nunca ejecuta código del modelo) ----
+const MATERIALES = ['mate', 'brillante', 'metal', 'oro', 'cromo', 'vidrio', 'plastico', 'goma', 'ceramica', 'esmalte', 'encia', 'piel', 'tela', 'madera', 'hueso', 'liquido', 'emisivo'];
+const SISTEMA = (max, estilo) => `Eres un modelador 3D. Describe el objeto pedido como composición de piezas para three.js. Devuelve SOLO un JSON válido:
+{"nombre":"...","fondo":"#hex","piso":true,"piezas":[PIEZA, ...]}
+PIEZA: {"nombre":"...","tipo":"...","pos":[x,y,z],"rot":[rx,ry,rz],"escala":[sx,sy,sz],"color":"#hex","material":"..."} más los campos de su tipo.
+Tipos:
+- box, sphere, cylinder, cone, torus, capsule, plane: primitivas de tamaño 1 que se estiran con escala (sphere con escala [a,b,c] = elipsoide de diámetros a, b, c).
+- roundbox: caja con aristas redondeadas; escala = medidas en metros; "radio" = radio del borde.
+- lathe: sólido de revolución alrededor del eje Y (botella, vaso, jarrón, copa, perilla, corona de un diente); "perfil": [[radio,y],...] de abajo hacia arriba, 6 a 24 puntos, radio >= 0.
+- extrude: contorno 2D con grosor (pieza plana, hoja, placa, engranaje); "forma": [[x,y],...] contorno cerrado, "profundidad", "bisel" (0 a 0.05).
+- tube: tubo que sigue una curva (cable, asa, manguera, raíz, rama); "camino": [[x,y,z],...] 3 a 16 puntos, "radio".
+Formas orgánicas (dientes, frutas, animales, cuerpos, rocas, nubes): pon el mismo "fundir":"grupo" en varias sphere, capsule, cone o cylinder y el panel las funde en UNA superficie suave sin costuras (cúspides, raíces, músculos). La primera pieza del grupo da color y material.
+Materiales: ${MATERIALES.join(', ')}. esmalte = diente o porcelana pulida; encia = tejido húmedo; emisivo = pantalla o foco que brilla.
+Opcionales por pieza: "rugosidad" 0 a 1, "metalico" 0 a 1.
+Unidades en metros, el objeto centrado en el origen y apoyado en y=0 (su base en y=0). Rotaciones en radianes. Máximo ${max} piezas: los detalles que hacen reconocible el objeto valen más que muchas piezas iguales. Estilo: ${estilo}. Colores reales del objeto. Sin texto fuera del JSON.`;
 async function generar() {
   if (estado.enCurso) return;
   const desc = $('descripcion').value.trim(); if (!desc && !estado.imagen) return mostrarError('Describe el objeto o sube una foto.');
@@ -90,88 +102,235 @@ async function generar() {
     mostrarEstado(estado.imagen ? 'Mirando la referencia y armando la escena…' : 'Armando la escena…');
     const max = Math.min(60, Math.max(4, Number($('max-piezas').value) || 24));
     const contenido = estado.imagen ? [{ type: 'text', text: `Objeto: ${desc || 'el de la imagen'}. Usa la imagen como referencia de forma, proporciones y colores.` }, { type: 'image_url', image_url: { url: estado.imagen } }] : `Objeto: ${desc}`;
-    const r = await P.llamarConRespaldo({ tarea: estado.imagen ? 'vision' : 'codigo', mensajes: [{ role: 'system', content: SISTEMA(max, $('estilo').value) }, { role: 'user', content: contenido }], maxTokens: 4000, stream: false, alPaso: (p) => mostrarEstado(p) });
+    const r = await P.llamarConRespaldo({ tarea: estado.imagen ? 'vision' : 'codigo', mensajes: [{ role: 'system', content: SISTEMA(max, $('estilo').value) }, { role: 'user', content: contenido }], maxTokens: 6000, stream: false, alPaso: (p) => mostrarEstado(p) });
     const m = r.texto.match(/\{[\s\S]*\}/); if (!m) throw new Error('el modelo no devolvió una escena válida');
     const esc = JSON.parse(m[0]); if (!Array.isArray(esc.piezas) || !esc.piezas.length) throw new Error('escena sin piezas');
     estado.escena = normalizar(esc);
     $('modelo').textContent = `${r.proveedor} · ${r.modelo} · ${estado.escena.piezas.length} piezas`;
     const u = r.usage || {}; const ext = (u.prompt_tokens || 0) + (u.completion_tokens || 0) || Math.round(r.texto.length / 3.8); sumar({ externo: ext, evitado: ext, costo: u.cost || 0 });
-    $('escena-caja').hidden = false; await render(); pintarPiezas();
+    $('escena-caja').hidden = false; await render(); pintarPiezas(); recordar();
     guardarEnCerebro(`3D: ${desc.slice(0, 60) || estado.escena.nombre}`, JSON.stringify(estado.escena));
   } catch (e) { mostrarError(e.message); }
   finally { estado.enCurso = false; $('btn-generar').disabled = false; mostrarEstado(''); }
 }
-const TIPOS = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'capsule', 'plane'];
+const TIPOS = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'capsule', 'plane', 'roundbox', 'lathe', 'extrude', 'tube'];
 const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const hex = (c, d) => (/^#[0-9a-f]{6}$/i.test(String(c)) ? String(c) : d);
+const lim = (v, a, b) => Math.min(b, Math.max(a, v));
+const puntos = (l, n, max = 64) => (Array.isArray(l) ? l.slice(0, max).filter((p) => Array.isArray(p) && p.length >= n).map((p) => p.slice(0, n).map((v) => num(v, 0))) : []);
 function normalizar(e) {
-  const piezas = e.piezas.slice(0, 60).map((p, i) => ({ nombre: String(p.nombre || `pieza ${i + 1}`).slice(0, 40), tipo: TIPOS.includes(p.tipo) ? p.tipo : 'box', pos: [0, 1, 2].map((k) => num(p.pos?.[k], 0)), rot: [0, 1, 2].map((k) => num(p.rot?.[k], 0)), escala: [0, 1, 2].map((k) => Math.max(0.01, num(p.escala?.[k], 1))), color: hex(p.color, '#8899aa'), material: ['mate', 'brillante', 'metal', 'vidrio'].includes(p.material) ? p.material : 'mate' }));
-  return { nombre: String(e.nombre || 'objeto').slice(0, 60), fondo: hex(e.fondo, '#0f0e16'), piso: e.piso !== false, piezas };
+  const piezas = e.piezas.slice(0, 60).map((p, i) => {
+    const q = { nombre: String(p.nombre || `pieza ${i + 1}`).slice(0, 40), tipo: TIPOS.includes(p.tipo) ? p.tipo : 'box', pos: [0, 1, 2].map((k) => num(p.pos?.[k], 0)), rot: [0, 1, 2].map((k) => num(p.rot?.[k], 0)), escala: [0, 1, 2].map((k) => Math.max(0.001, num(p.escala?.[k], 1))), color: hex(p.color, '#8899aa'), material: MATERIALES.includes(p.material) ? p.material : 'mate' };
+    if (p.rugosidad != null) q.rugosidad = lim(num(p.rugosidad, 0.5), 0, 1);
+    if (p.metalico != null) q.metalico = lim(num(p.metalico, 0), 0, 1);
+    if (typeof p.fundir === 'string' && p.fundir.trim() && ['sphere', 'capsule', 'cone', 'cylinder', 'box'].includes(q.tipo)) q.fundir = p.fundir.trim().slice(0, 30);
+    if (q.tipo === 'roundbox') q.radio = Math.max(0, num(p.radio, 0.05));
+    if (q.tipo === 'lathe') { q.perfil = puntos(p.perfil, 2).map(([r, y]) => [Math.max(0, r), y]); if (q.perfil.length < 2) q.tipo = 'cylinder'; }
+    if (q.tipo === 'extrude') { q.forma = puntos(p.forma, 2); q.profundidad = Math.max(0.001, num(p.profundidad, 0.05)); q.bisel = lim(num(p.bisel, 0.01), 0, 0.2); if (q.forma.length < 3) q.tipo = 'box'; }
+    if (q.tipo === 'tube') { q.camino = puntos(p.camino, 3, 32); q.radio = Math.max(0.001, num(p.radio, 0.02)); if (q.camino.length < 2) q.tipo = 'cylinder'; }
+    if (['lathe', 'extrude', 'tube'].includes(q.tipo) && !p.escala) q.escala = [1, 1, 1];
+    return q;
+  });
+  return { nombre: String(e.nombre || 'objeto').slice(0, 60), fondo: hex(e.fondo, '#1a1924'), piso: e.piso !== false, piezas };
 }
 
 // ---- three.js ----
+// Lo que separa un render de estudio de uno plano (aprendido en Backlot): luz de entorno (RoomEnvironment + PMREM)
+// para que los materiales físicos tengan qué reflejar, tone mapping ACES, sombras suaves, oclusión ambiental (GTAO)
+// en los pliegues, bloom solo en lo emisivo, SMAA en los bordes, y formas que no sean primitivas sueltas: torno,
+// extrusión, tubos y superficies fundidas (marching cubes) para lo orgánico.
+const calidad = () => $('calidad').value;
 async function tresInit() {
   if (estado.tres) return estado.tres;
   const THREE = await import('three');
-  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
-  const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+  const [{ OrbitControls }, { GLTFExporter }, { RoomEnvironment }, { RoundedBoxGeometry }, { MarchingCubes }, { EffectComposer }, { RenderPass }, { GTAOPass }, { UnrealBloomPass }, { SMAAPass }, { OutputPass }, { ShaderPass }] = await Promise.all([
+    import('three/addons/controls/OrbitControls.js'), import('three/addons/exporters/GLTFExporter.js'), import('three/addons/environments/RoomEnvironment.js'),
+    import('three/addons/geometries/RoundedBoxGeometry.js'), import('three/addons/objects/MarchingCubes.js'), import('three/addons/postprocessing/EffectComposer.js'),
+    import('three/addons/postprocessing/RenderPass.js'), import('three/addons/postprocessing/GTAOPass.js'), import('three/addons/postprocessing/UnrealBloomPass.js'),
+    import('three/addons/postprocessing/SMAAPass.js'), import('three/addons/postprocessing/OutputPass.js'), import('three/addons/postprocessing/ShaderPass.js')]);
   const canvas = $('lienzo');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); renderer.shadowMap.enabled = true;
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.92;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.8;
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 1000);
   const controls = new OrbitControls(camera, canvas); controls.enableDamping = true;
   const grupo = new THREE.Group(); scene.add(grupo);
-  const luzA = new THREE.HemisphereLight(0xffffff, 0x444466, 0.9); scene.add(luzA);
-  const luzD = new THREE.DirectionalLight(0xffffff, 1.4); luzD.position.set(4, 8, 5); luzD.castShadow = true; luzD.shadow.mapSize.set(1024, 1024); scene.add(luzD);
-  const piso = new THREE.Mesh(new THREE.CircleGeometry(6, 48), new THREE.MeshStandardMaterial({ color: 0x1b1a26, roughness: 0.95 })); piso.rotation.x = -Math.PI / 2; piso.receiveShadow = true; scene.add(piso);
+  // tres puntos: principal cálida con sombra, relleno frío, contraluz que separa el borde del fondo
+  const luzA = new THREE.HemisphereLight(0xffffff, 0x3a3848, 0.35); scene.add(luzA);
+  const principal = new THREE.DirectionalLight(0xfff1e0, 2.2); principal.castShadow = true; principal.shadow.mapSize.set(2048, 2048); principal.shadow.radius = 4; principal.shadow.bias = -0.0004; principal.shadow.normalBias = 0.02; scene.add(principal, principal.target);
+  const relleno = new THREE.DirectionalLight(0xdfe8ff, 0.6); scene.add(relleno);
+  const contra = new THREE.DirectionalLight(0xffffff, 1.4); scene.add(contra);
+  // fondo de estudio sin costura: el piso tiene el color del fondo y la niebla lo funde con el horizonte
+  const piso = new THREE.Mesh(new THREE.CircleGeometry(1, 96), new THREE.MeshStandardMaterial({ color: 0x1b1a26, roughness: 0.92, metalness: 0 })); piso.rotation.x = -Math.PI / 2; piso.receiveShadow = true; scene.add(piso);
   const rejilla = new THREE.GridHelper(12, 24, 0x3a3850, 0x26253a); rejilla.position.y = 0.001; scene.add(rejilla);
-  const ajustar = () => { const w = canvas.clientWidth || 600, h = canvas.clientHeight || 420; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  const composer = new EffectComposer(renderer);
+  const gtao = new GTAOPass(scene, camera, 600, 420); gtao.blendIntensity = 1;
+  // Bloom selectivo (como el ejemplo oficial de three.js): solo brilla lo emisivo. Un bloom por umbral lavaba la imagen
+  // entera, porque un fondo claro o una pieza blanca bien iluminada pasan cualquier umbral en HDR.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(600, 420), 0.7, 0.4, 0);
+  const brillo = new EffectComposer(renderer); brillo.renderToScreen = false;
+  brillo.addPass(new RenderPass(scene, camera)); brillo.addPass(bloom);
+  const mezcla = new ShaderPass(new THREE.ShaderMaterial({ uniforms: { baseTexture: { value: null }, bloomTexture: { value: brillo.renderTarget2.texture } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform sampler2D baseTexture; uniform sampler2D bloomTexture; varying vec2 vUv; void main() { gl_FragColor = texture2D(baseTexture, vUv) + vec4(texture2D(bloomTexture, vUv).rgb, 0.0); }' }), 'baseTexture');
+  mezcla.needsSwap = true; mezcla.enabled = false;
+  const smaa = new SMAAPass(600, 420);
+  composer.addPass(new RenderPass(scene, camera)); composer.addPass(gtao); composer.addPass(mezcla); composer.addPass(smaa); composer.addPass(new OutputPass());
+  const negro = new THREE.MeshBasicMaterial({ color: 0x000000 }), guardados = new Map();
+  const pasoBrillo = () => {
+    scene.traverse((o) => { if ((o.isMesh || o.isLineSegments) && !o.userData.brilla) { guardados.set(o, o.material); o.material = negro; } });
+    const bg = scene.background, fog = scene.fog; scene.background = null; scene.fog = null;
+    brillo.render();
+    scene.background = bg; scene.fog = fog; for (const [o, m] of guardados) o.material = m; guardados.clear();
+  };
+  const ajustar = () => { const w = canvas.clientWidth || 600, h = canvas.clientHeight || 420; renderer.setSize(w, h, false); for (const c of [composer, brillo]) { c.setPixelRatio(renderer.getPixelRatio()); c.setSize(w, h); } camera.aspect = w / h; camera.updateProjectionMatrix(); };
   ajustar(); window.addEventListener('resize', ajustar);
+  const dibujar = () => { if (calidad() === 'rapida') return renderer.render(scene, camera); if (mezcla.enabled) pasoBrillo(); composer.render(); };
   let anim = null;
-  const bucle = () => { controls.update(); renderer.render(scene, camera); requestAnimationFrame(bucle); }; bucle();
-  estado.tres = { THREE, renderer, scene, camera, controls, grupo, piso, rejilla, GLTFExporter, setAnim: (f) => { anim?.kill?.(); anim = f; } };
+  const bucle = () => { controls.update(); dibujar(); requestAnimationFrame(bucle); }; bucle();
+  estado.tres = { THREE, renderer, scene, camera, controls, grupo, piso, rejilla, luces: { principal, relleno, contra }, gtao, bloom, mezcla, GLTFExporter, RoundedBoxGeometry, MarchingCubes, dibujar, setAnim: (f) => { anim?.kill?.(); anim = f; } };
   return estado.tres;
 }
-function material(THREE, color, tipo) {
-  const c = new THREE.Color(color);
-  if (tipo === 'metal') return new THREE.MeshStandardMaterial({ color: c, metalness: 0.9, roughness: 0.25 });
-  if (tipo === 'brillante') return new THREE.MeshStandardMaterial({ color: c, metalness: 0.1, roughness: 0.2 });
-  if (tipo === 'vidrio') return new THREE.MeshPhysicalMaterial({ color: c, transmission: 0.85, roughness: 0.05, thickness: 0.3, transparent: true, opacity: 0.85 });
-  return new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: 0 });
+function material(THREE, p, estilo) {
+  const c = new THREE.Color(p.color), F = (o) => new THREE.MeshPhysicalMaterial({ color: c, ...o });
+  const plano = estilo === 'lowpoly' ? { flatShading: true } : {};
+  const m = {
+    mate: () => F({ roughness: 0.8, metalness: 0 }),
+    brillante: () => F({ roughness: 0.25, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.15 }),
+    metal: () => F({ roughness: 0.3, metalness: 1 }),
+    oro: () => F({ color: new THREE.Color(p.color === '#8899aa' ? '#e5b94e' : p.color), roughness: 0.22, metalness: 1 }),
+    cromo: () => F({ roughness: 0.06, metalness: 1 }),
+    vidrio: () => F({ roughness: 0.03, metalness: 0, transmission: 1, thickness: 0.4, ior: 1.5, transparent: true }),
+    plastico: () => F({ roughness: 0.35, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.3 }),
+    goma: () => F({ roughness: 0.92, metalness: 0, sheen: 0.3, sheenRoughness: 0.8 }),
+    ceramica: () => F({ roughness: 0.18, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, ior: 1.55 }),
+    // esmalte dental: dieléctrico denso (ior 1.62), capa transparente encima y algo de luz que entra (transmisión
+    // con atenuación cálida), así el borde se ve translúcido y el centro opaco, como un diente de verdad
+    esmalte: () => F({ roughness: 0.22, metalness: 0, ior: 1.62, clearcoat: 1, clearcoatRoughness: 0.12, transmission: 0.12, thickness: 0.8, attenuationColor: new THREE.Color('#f2d9a6'), attenuationDistance: 0.6, sheen: 0.2, sheenColor: new THREE.Color('#ffffff') }),
+    encia: () => F({ roughness: 0.35, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.25, sheen: 0.5, sheenColor: new THREE.Color('#ffb3b3'), transmission: 0.05, thickness: 0.5, attenuationColor: new THREE.Color('#b03030'), attenuationDistance: 0.3 }),
+    piel: () => F({ roughness: 0.55, metalness: 0, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new THREE.Color('#ffd0b0') }),
+    tela: () => F({ roughness: 0.95, metalness: 0, sheen: 1, sheenRoughness: 0.6, sheenColor: c.clone().offsetHSL(0, -0.1, 0.2) }),
+    madera: () => F({ roughness: 0.65, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.4 }),
+    hueso: () => F({ roughness: 0.6, metalness: 0, sheen: 0.3, sheenColor: new THREE.Color('#fff6e0') }),
+    liquido: () => F({ roughness: 0.02, metalness: 0, transmission: 0.9, thickness: 0.6, ior: 1.33, attenuationColor: c, attenuationDistance: 0.4, transparent: true }),
+    emisivo: () => F({ roughness: 0.4, metalness: 0, emissive: c, emissiveIntensity: 1.6 }),
+  }[estilo === 'juguete' && p.material === 'mate' ? 'plastico' : p.material]();
+  if (p.rugosidad != null) m.roughness = p.rugosidad;
+  if (p.metalico != null) m.metalness = p.metalico;
+  Object.assign(m, plano);
+  return m;
 }
-function geometria(THREE, tipo) {
-  if (tipo === 'sphere') return new THREE.SphereGeometry(0.5, 32, 24);
-  if (tipo === 'cylinder') return new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-  if (tipo === 'cone') return new THREE.ConeGeometry(0.5, 1, 32);
-  if (tipo === 'torus') return new THREE.TorusGeometry(0.5, 0.15, 16, 48);
-  if (tipo === 'capsule') return new THREE.CapsuleGeometry(0.3, 0.6, 8, 16);
-  if (tipo === 'plane') return new THREE.PlaneGeometry(1, 1);
-  return new THREE.BoxGeometry(1, 1, 1);
+function geometria(T, p, estilo) {
+  const { THREE } = T, s = estilo === 'lowpoly' ? 0.25 : 1, n = (k) => Math.max(5, Math.round(k * s));
+  switch (p.tipo) {
+    case 'sphere': return new THREE.SphereGeometry(0.5, n(64), n(48));
+    case 'cylinder': return new THREE.CylinderGeometry(0.5, 0.5, 1, n(64));
+    case 'cone': return new THREE.ConeGeometry(0.5, 1, n(64));
+    case 'torus': return new THREE.TorusGeometry(0.5, 0.15, n(24), n(96));
+    case 'capsule': return new THREE.CapsuleGeometry(0.3, 0.6, n(12), n(32));
+    case 'plane': return new THREE.PlaneGeometry(1, 1);
+    case 'roundbox': return new T.RoundedBoxGeometry(1, 1, 1, 6, Math.min(0.5, p.radio / Math.max(0.001, Math.min(...p.escala))));
+    case 'lathe': return new THREE.LatheGeometry(p.perfil.map(([r, y]) => new THREE.Vector2(r, y)), n(96));
+    case 'extrude': {
+      const f = new THREE.Shape(p.forma.map(([x, y]) => new THREE.Vector2(x, y)));
+      const g = new THREE.ExtrudeGeometry(f, { depth: p.profundidad, bevelEnabled: p.bisel > 0, bevelThickness: p.bisel, bevelSize: p.bisel, bevelSegments: n(4), curveSegments: n(24) });
+      g.translate(0, 0, -p.profundidad / 2); return g;
+    }
+    case 'tube': return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(p.camino.map((q) => new THREE.Vector3(...q))), n(128), p.radio, n(20), false);
+    default: return new THREE.BoxGeometry(1, 1, 1);
+  }
+}
+// Pieza fundible → bolas del campo de marching cubes: un elipsoide o una cápsula estirada se vuelve una fila de bolas
+// a lo largo de su eje más largo (el cono, con radio decreciente). Devuelve [x, y, z, radio] en metros.
+function bolasDe(THREE, p) {
+  const [sx, sy, sz] = p.tipo === 'capsule' ? [p.escala[0] * 0.6, p.escala[1] * 1.2, p.escala[2] * 0.6] : p.escala;
+  const ejes = [[sx, new THREE.Vector3(1, 0, 0)], [sy, new THREE.Vector3(0, 1, 0)], [sz, new THREE.Vector3(0, 0, 1)]].sort((a, b) => b[0] - a[0]);
+  const largo = ejes[0][0], r0 = (ejes[1][0] + ejes[2][0]) / 4, eje = ejes[0][1];
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...p.rot));
+  const cuantas = Math.max(1, Math.min(32, Math.ceil((largo - 2 * r0) / (r0 * 0.4)) + 1));
+  const out = [];
+  for (let i = 0; i < cuantas; i++) {
+    const u = cuantas === 1 ? 0.5 : i / (cuantas - 1);
+    const r = p.tipo === 'cone' ? r0 * (1.1 - 0.6 * u) : r0;   // el cono se afina hacia la punta (+y local) sin volverse gotas sueltas
+    const o = eje.clone().multiplyScalar((u - 0.5) * Math.max(0, largo - 2 * r)).applyQuaternion(q);
+    out.push([p.pos[0] + o.x, p.pos[1] + o.y, p.pos[2] + o.z, Math.max(0.002, r)]);
+  }
+  return out;
+}
+// Grupo fundido: una sola superficie suave (marching cubes) que se copia a una geometría fija, para sombras y GLB.
+function fundidas(T, piezas, estilo) {
+  const { THREE } = T, bolas = piezas.flatMap((p) => bolasDe(THREE, p));
+  const SUB = 30, ISO = 80, alcance = Math.sqrt((ISO + SUB) / SUB);       // la bola influye hasta alcance × su radio
+  const min = [0, 1, 2].map((k) => Math.min(...bolas.map((b) => b[k] - b[3] * alcance)));
+  const max = [0, 1, 2].map((k) => Math.max(...bolas.map((b) => b[k] + b[3] * alcance)));
+  const L = Math.max(...[0, 1, 2].map((k) => max[k] - min[k])) * 1.08, c = [0, 1, 2].map((k) => (min[k] + max[k]) / 2);
+  const res = estilo === 'lowpoly' ? 28 : calidad() === 'rapida' ? 56 : 96;
+  const mc = new T.MarchingCubes(res, new THREE.MeshBasicMaterial(), false, false, 200000);
+  mc.isolation = ISO; mc.reset();
+  for (const [x, y, z, r] of bolas) { const rn = r / L; mc.addBall((x - c[0]) / L + 0.5, (y - c[1]) / L + 0.5, (z - c[2]) / L + 0.5, (ISO + SUB) * rn * rn, SUB); }
+  mc.update();
+  const n = mc.count, g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(mc.positionArray.slice(0, n * 3), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(mc.normalArray.slice(0, n * 3), 3));
+  mc.geometry.dispose();
+  const m = new THREE.Mesh(g, material(THREE, piezas[0], estilo));
+  m.position.set(...c); m.scale.setScalar(L / 2); m.name = piezas[0].fundir; m.userData.brilla = piezas[0].material === 'emisivo';
+  return m;
 }
 async function render() {
-  const T = await tresInit(); const { THREE, scene, grupo, camera, controls, piso, rejilla } = T;
-  while (grupo.children.length) grupo.remove(grupo.children[0]);
-  const e = estado.escena; scene.background = new THREE.Color(e.fondo); piso.visible = e.piso; rejilla.visible = e.piso;
-  for (const p of e.piezas) { const m = new THREE.Mesh(geometria(THREE, p.tipo), material(THREE, p.color, p.material)); m.position.set(...p.pos); m.rotation.set(...p.rot); m.scale.set(...p.escala); m.castShadow = true; m.receiveShadow = true; m.name = p.nombre; grupo.add(m); }
-  const caja = new THREE.Box3().setFromObject(grupo); const centro = caja.getCenter(new THREE.Vector3()); const tam = caja.getSize(new THREE.Vector3()).length() || 2;
-  grupo.position.y -= caja.min.y; // apoyar en el piso
-  controls.target.set(centro.x, (caja.max.y - caja.min.y) / 2, centro.z); camera.position.set(centro.x + tam * 0.9, tam * 0.7, centro.z + tam * 1.1); camera.near = tam / 100; camera.far = tam * 50; camera.updateProjectionMatrix(); controls.update();
+  const T = await tresInit(); const { THREE, scene, grupo, camera, controls, piso, rejilla, luces, gtao } = T;
+  while (grupo.children.length) { const h = grupo.children[0]; grupo.remove(h); h.traverse?.((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); }
+  const e = estado.escena, estilo = $('estilo').value;
+  const grupos = new Map();
+  for (const p of e.piezas) {
+    if (p.fundir) { if (!grupos.has(p.fundir)) grupos.set(p.fundir, []); grupos.get(p.fundir).push(p); continue; }
+    const m = new THREE.Mesh(geometria(T, p, estilo), material(THREE, p, estilo)); m.position.set(...p.pos); m.rotation.set(...p.rot);
+    if (p.tipo === 'roundbox' || !['lathe', 'extrude', 'tube'].includes(p.tipo) || p.escala.some((v) => v !== 1)) m.scale.set(...p.escala);
+    m.name = p.nombre; m.userData.brilla = p.material === 'emisivo'; grupo.add(m);
+  }
+  for (const ps of grupos.values()) { try { grupo.add(fundidas(T, ps, estilo)); } catch (err) { console.warn('fundir', err); } }
+  if (estilo === 'esquema') for (const m of [...grupo.children]) m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 25), new THREE.LineBasicMaterial({ color: 0x9fb4ff })));
+  grupo.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  T.setAnim(null); grupo.position.set(0, 0, 0); grupo.rotation.set(0, 0, 0); grupo.updateMatrixWorld(true);   // sin la animación ni el apoyo de la escena anterior
+  const caja = new THREE.Box3().setFromObject(grupo); grupo.position.y = -caja.min.y;   // apoyar en el piso
+  caja.setFromObject(grupo);
+  const esfera = caja.getBoundingSphere(new THREE.Sphere()), R = esfera.radius || 1, cen = esfera.center;
+  const fondo = new THREE.Color(e.fondo); scene.background = fondo; scene.fog = e.piso ? new THREE.Fog(fondo, R * 6, R * 14) : null;
+  piso.visible = e.piso; piso.material.color.copy(fondo).offsetHSL(0, 0, 0.03); piso.scale.setScalar(R * 20);
+  rejilla.visible = e.piso && estilo === 'esquema'; rejilla.scale.setScalar(R / 2);
+  // luces y sombra a la escala del objeto
+  const L = luces, d = R * 4;
+  L.principal.position.set(cen.x + d * 0.6, cen.y + d * 0.9, cen.z + d * 0.7); L.principal.target.position.copy(cen);
+  const sc = L.principal.shadow.camera; sc.left = sc.bottom = -R * 1.6; sc.right = sc.top = R * 1.6; sc.near = d * 0.1; sc.far = d * 3; sc.updateProjectionMatrix();
+  L.relleno.position.set(cen.x - d * 0.8, cen.y + d * 0.3, cen.z + d * 0.4);
+  L.contra.position.set(cen.x - d * 0.2, cen.y + d * 0.6, cen.z - d);
+  T.mezcla.enabled = e.piezas.some((p) => p.material === 'emisivo');
+  gtao.updateGtaoMaterial({ radius: R * 0.18, distanceExponent: 1, thickness: R * 0.12, scale: 1, samples: 16 });
+  // cámara de producto: tres cuartos, un poco arriba, lente de 35° para no deformar
+  const dist = (R / Math.sin((camera.fov * Math.PI) / 360)) * 1.12;
+  controls.target.copy(cen); camera.position.set(cen.x + dist * 0.62, cen.y + dist * 0.32, cen.z + dist * 0.72); camera.near = dist / 100; camera.far = dist * 40; camera.updateProjectionMatrix(); controls.update();
   const anim = $('anim').value; grupo.rotation.y = 0;
   if (anim === 'girar' && window.gsap) T.setAnim(gsap.to(grupo.rotation, { y: Math.PI * 2, duration: 14, repeat: -1, ease: 'none' }));
-  else if (anim === 'flotar' && window.gsap) T.setAnim(gsap.to(grupo.position, { y: grupo.position.y + tam * 0.05, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+  else if (anim === 'flotar' && window.gsap) T.setAnim(gsap.to(grupo.position, { y: grupo.position.y + R * 0.05, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
   else T.setAnim(null);
 }
 $('anim').addEventListener('change', () => estado.escena && render());
+$('estilo').addEventListener('change', () => estado.escena && render());
+$('calidad').addEventListener('change', () => estado.escena && render());
+window.__ra3d = { tres: () => estado.tres, cargar: async (esc) => { estado.escena = normalizar(esc); $('escena-caja').hidden = false; await render(); pintarPiezas(); return estado.escena.piezas.length; } };   // pruebas: carga una escena sin modelo
 function pintarPiezas() {
   $('piezas').innerHTML = estado.escena.piezas.map((p, i) => `<div class="pieza"><span>${escapar(p.nombre)} <span class="modelo">${p.tipo}</span></span><input type="color" value="${p.color}" data-i="${i}" data-k="color" title="color"><input type="number" step="0.1" value="${p.escala[1]}" data-i="${i}" data-k="alto" title="alto"><button data-del="${i}" style="min-height:0;padding:2px 8px">✕</button></div>`).join('');
 }
-$('piezas').addEventListener('input', (e) => { const t = e.target; const i = Number(t.dataset.i); if (!Number.isInteger(i)) return; const p = estado.escena.piezas[i]; if (t.dataset.k === 'color') p.color = t.value; if (t.dataset.k === 'alto') p.escala[1] = Math.max(0.01, Number(t.value) || 1); render(); });
+$('piezas').addEventListener('input', (e) => { const t = e.target; const i = Number(t.dataset.i); if (!Number.isInteger(i)) return; const p = estado.escena.piezas[i]; if (t.dataset.k === 'color') p.color = t.value; if (t.dataset.k === 'alto') p.escala[1] = Math.max(0.01, Number(t.value) || 1); render(); recordar(); });
 $('piezas').addEventListener('click', (e) => { const b = e.target.closest('button[data-del]'); if (!b) return; estado.escena.piezas.splice(Number(b.dataset.del), 1); pintarPiezas(); render(); });
 
 // ---- Exportar ----
 async function subir(nombre, blob) { const r = await fetch(`${CEREBRO_URL}/archivo`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Nombre': encodeURIComponent(nombre) }, body: blob }); const j = await r.json(); if (!r.ok) throw new Error(j.error || `servidor respondió ${r.status}`); $('nota').hidden = false; $('nota').innerHTML = `Descarga: <a class="enlace" href="${escapar(j.url)}" target="_blank" rel="noopener">${escapar(j.nombre)}</a> (24 h)`; try { if (app.openLink) await app.openLink({ url: j.url }); } catch {} }
-$('btn-png').addEventListener('click', async () => { try { const T = await tresInit(); T.renderer.render(T.scene, T.camera); const blob = await new Promise((r) => $('lienzo').toBlob(r, 'image/png')); await subir(`${(estado.escena?.nombre || 'escena').replace(/[^\p{L}\p{N}]+/gu, '-')}.png`, blob); } catch (e) { $('nota').hidden = false; $('nota').textContent = e.message; } });
+$('btn-png').addEventListener('click', async () => { try { const T = await tresInit(); T.dibujar(); const blob = await new Promise((r) => $('lienzo').toBlob(r, 'image/png')); await subir(`${(estado.escena?.nombre || 'escena').replace(/[^\p{L}\p{N}]+/gu, '-')}.png`, blob); } catch (e) { $('nota').hidden = false; $('nota').textContent = e.message; } });
 $('btn-glb').addEventListener('click', async () => { try { const T = await tresInit(); const exp = new T.GLTFExporter(); const buf = await new Promise((res, rej) => exp.parse(T.grupo, res, rej, { binary: true })); await subir(`${(estado.escena?.nombre || 'escena').replace(/[^\p{L}\p{N}]+/gu, '-')}.glb`, new Blob([buf], { type: 'model/gltf-binary' })); } catch (e) { $('nota').hidden = false; $('nota').textContent = 'No se pudo exportar: ' + e.message; } });
 $('btn-json').addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(estado.escena, null, 1)); $('nota').hidden = false; $('nota').textContent = 'Escena copiada.'; } catch {} });
 $('btn-mejorar').addEventListener('click', async () => {
@@ -179,7 +338,7 @@ $('btn-mejorar').addEventListener('click', async () => {
   try {
     mostrarEstado('Pidiendo mejoras…');
     const r = await P.llamarConRespaldo({ tarea: 'codigo', mensajes: [{ role: 'system', content: SISTEMA(Math.min(60, estado.escena.piezas.length + 12), $('estilo').value) }, { role: 'user', content: `Mejora esta escena para que se reconozca mejor como «${$('descripcion').value.trim() || estado.escena.nombre}»: corrige proporciones, añade detalles que falten, mantén el estilo. Escena actual:\n${JSON.stringify(estado.escena)}` }], maxTokens: 4000, stream: false });
-    const m = r.texto.match(/\{[\s\S]*\}/); if (!m) throw new Error('sin escena válida'); estado.escena = normalizar(JSON.parse(m[0])); const u = r.usage || {}; const ext = (u.prompt_tokens || 0) + (u.completion_tokens || 0); sumar({ externo: ext, evitado: ext, costo: u.cost || 0 }); await render(); pintarPiezas();
+    const m = r.texto.match(/\{[\s\S]*\}/); if (!m) throw new Error('sin escena válida'); estado.escena = normalizar(JSON.parse(m[0])); const u = r.usage || {}; const ext = (u.prompt_tokens || 0) + (u.completion_tokens || 0); sumar({ externo: ext, evitado: ext, costo: u.cost || 0 }); await render(); pintarPiezas(); recordar();
   } catch (e) { mostrarError(e.message); } finally { estado.enCurso = false; mostrarEstado(''); }
 });
 $('btn-claude').addEventListener('click', async () => {
@@ -199,15 +358,21 @@ async function guardarEnCerebro(pregunta, respuesta) {
 
 // ---- Host ----
 $('btn-generar').addEventListener('click', generar);
-const app = new App({ name: 'research-academy-3d', version: '0.1.0' });
+const app = new App({ name: 'research-academy-3d', version: '0.2.0' });
 let entradaChars = 0;
 app.ontoolinput = (p) => { entradaChars = JSON.stringify(p?.arguments || {}).length; };
 app.ontoolresult = (r) => {
   const sc = r?.structuredContent || {}; const salidaChars = (r?.content || []).reduce((n, c) => n + (c.text || '').length, 0);
   estado.consulta = { claude: 0, externo: 0, evitado: 0, costo: 0 }; sumar({ claude: (entradaChars + salidaChars) / 3.8 + 45 });
   if (sc.descripcion) $('descripcion').value = sc.descripcion; if (sc.estilo) $('estilo').value = sc.estilo;
-  if (sc.descripcion) generar();
+  (async () => {   // memoria por llamada: al volver con el scroll, la misma escena sin pedirla otra vez al modelo
+    estado.clave = P.memoria ? await P.memoria.clave(app, '3d', sc) : null;
+    const f = estado.clave ? await P.memoria.leer(estado.clave) : null;
+    if (f?.escena) { estado.escena = f.escena; if (f.consulta) { estado.consulta = f.consulta; pintarMedidor(); } $('modelo').textContent = f.modelo || ''; $('escena-caja').hidden = false; await render(); pintarPiezas(); return; }
+    if (sc.descripcion) generar();
+  })();
 };
+function recordar() { if (estado.clave && estado.escena) P.memoria?.guardar(estado.clave, { escena: estado.escena, consulta: estado.consulta, modelo: $('modelo').textContent }); }
 app.onhostcontextchanged = (c) => { if (c?.theme === 'light' || c?.theme === 'dark') document.documentElement.dataset.theme = c.theme; };
 pintarMedidor();
 if (!P.configurados().length) mostrarError('No hay proveedores configurados. Pide a Claude «research-academy configurar».');

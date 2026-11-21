@@ -106,3 +106,55 @@ Todo lo del mapa de 18 pedidos está construido. Herramientas MCP: `delegar`, `i
 - Panel Código (`codigo`): escribir, corregir, explicar, revisar, tests, convertir; proveedor automático o elegido; vista previa de HTML, CSS y JS en iframe con `sandbox="allow-scripts"` (sin acceso a las llaves); ejecución de JavaScript en un Web Worker con tope de 5 s; descarga por enlace; "Pasar a Claude para la versión final"; nota en el cerebro.
 - Panel 3D (`render3d`): el modelo (visión si hay foto) devuelve un JSON de primitivas (box, sphere, cylinder, cone, torus, capsule, plane) con posición, rotación, escala, color y material; el panel lo normaliza y lo renderiza con three.js 0.170 (import map desde unpkg), OrbitControls, luces y sombras; animación girar o flotar con GSAP; edición de color y alto por pieza; "Pedir mejoras"; descarga PNG y GLB (`GLTFExporter`); nota en el cerebro. El código del modelo nunca se ejecuta: solo datos.
 - `comun.css` compartido. `manifest.json` fija `SERVER_URL` para que el origen del panel sea estable también en Claude Desktop.
+
+## Panel 3D con calidad de estudio (0.14.0)
+
+Lo aprendido en Backlot (estudio de video con three.js r170), aplicado a `tres.html`. Guía completa en `plugins/research-academy/skills/research-academy/references/render-3d.md`.
+
+- **Formas nuevas:**
+  - `roundbox` (`RoundedBoxGeometry`);
+  - `lathe` (perfil de revolución);
+  - `extrude` (contorno 2D con bisel);
+  - `tube` (curva Catmull-Rom);
+  - piezas con `"fundir": "grupo"`: esferas, cápsulas, conos y cilindros que se funden en una sola superficie con `MarchingCubes`. Así salen un diente, una fruta o un animal sin costuras.
+- **Materiales `MeshPhysicalMaterial`:** mate, brillante, metal, oro, cromo, vidrio, plástico, goma, cerámica, esmalte, encía, piel, tela, madera, hueso, líquido y emisivo. Cada pieza acepta `rugosidad` y `metalico` opcionales.
+- **Luz y cámara:**
+  - entorno `RoomEnvironment` con PMREM;
+  - tone mapping ACES;
+  - luz principal, de relleno y contraluz, con sombras PCF suaves;
+  - fondo de estudio sin costura, con piso del color del fondo y niebla;
+  - cámara de producto de 35° en vista de tres cuartos.
+- **Calidad «estudio»:**
+  - `GTAOPass`;
+  - bloom selectivo, solo en lo emisivo y con un segundo composer: un bloom por umbral lavaba la imagen entera;
+  - `SMAAPass` y `OutputPass`.
+
+  La calidad «rápida» dibuja sin posproceso.
+- **Corrección:** cargar una escena después de otra dejaba el objeto hundido bajo el piso, porque la caja se medía con el desplazamiento anterior.
+- **Pruebas:** muela y bodegón (botella, taza, posavasos, celular) en Chrome con SwiftShader, en las calidades estudio y rápida y en el estilo esquema. No hubo errores en la consola. `window.__ra3d.cargar(escena)` carga una escena sin modelo.
+
+## Panel Tablero (`dashboard`) y memoria por llamada (0.14.0)
+
+- **`tablero.html`:**
+  - el alumno suelta un Excel o CSV, que se lee en el navegador con SheetJS;
+  - al modelo gratuito van solo el perfil de columnas y 10 filas de muestra. El modelo devuelve un plan JSON con cifras, gráficos y filtros;
+  - un **revisor de diseño** corrige el plan y explica cada ajuste: sin torta, dos ejes ni 3D; la línea solo con fechas; columnas inexistentes fuera; series de más en «Otros»; un gráfico de una barra pasa a cifra;
+  - ECharts 5.6.0 (cdnjs) lo dibuja con la paleta validada para daltonismo, en claro y oscuro.
+- **Lo que ve el alumno:**
+  - cifras con variación y tendencia;
+  - color fijo por entidad;
+  - filtros arriba;
+  - «Ver tabla» en cada gráfico.
+- **Sin proveedores:** «Armar sin modelo» propone el plan a partir de las columnas.
+- **Descarga:** un HTML suelto con los datos y el mismo motor (`#motor-tablero`, copiado tal cual).
+- **Reglas:** en `plugins/research-academy/skills/research-academy/references/dashboard.md`.
+- **Memoria por llamada (`RA_prov.memoria`, en `proveedores.js`):**
+  - claude.ai desmonta el panel al salir de la pantalla y lo vuelve a montar al regresar, repitiendo tool-input y tool-result. Antes, cada regreso borraba el contenido, repetía la consulta al modelo y duplicaba la nota del cerebro;
+  - ahora el panel principal, Código, 3D y Tablero guardan lo hecho en IndexedDB y se pintan igual al volver. La clave combina `toolInfo.id`, la herramienta y los argumentos; se guardan 60 entradas y duran 30 días;
+  - `panel.html` ahora carga `proveedores.js`, y `mcp.mjs` le reemplaza todas las apariciones de `__CEREBRO_URL__`.
+- **Probado:**
+  - los seis paneles cargan sin errores;
+  - memoria: ida y vuelta, y poda a 60;
+  - un host falso del protocolo MCP Apps: al primer montaje el tablero se arma una vez; al remontar con la misma llamada no se vuelve a armar; con otra llamada sí.
+- **Pendiente:** Documentos todavía pierde el análisis al remontarse; no repite ninguna consulta.
+

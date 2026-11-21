@@ -197,5 +197,36 @@
     if (cfg.cerebro_auto != null) guardado.escribir('ra-cerebro-auto', cfg.cerebro_auto);
   }
 
-  global.RA_prov = { fetchT, listarModelos, elegirModelo, candidatos, PROVEEDORES, ORDEN_POR_DEFECTO, leerLlave, guardarLlave, borrarLlave, configurados, enmascarar, orden, guardarOrden, llamar, llamarConRespaldo, probar, exportarConfig, importarConfig, guardado };
+  // Memoria por llamada. En claude.ai el panel se desmonta cuando sale de la pantalla y se vuelve a montar al
+  // regresar; el host le repite la entrada y el resultado de la herramienta. Sin esto, cada regreso borraba lo
+  // hecho, repetía la consulta al modelo (otra llamada, otra nota en el cerebro) y el contenido «volvía a llegar».
+  // Clave = id de la llamada (toolInfo.id del host) + herramienta + argumentos; valor = lo que el panel necesita
+  // para pintarse igual. IndexedDB (no localStorage: ahí van las llaves y su cupo es chico), 60 entradas, 30 días.
+  const memoria = (() => {
+    const BD = 'ra-memoria', ALMACEN = 'llamadas', MAX = 60, VIDA = 30 * 864e5;
+    let bd = null;
+    const abrir = () => bd || (bd = new Promise((ok, mal) => {
+      try { const r = indexedDB.open(BD, 1); r.onupgradeneeded = () => r.result.createObjectStore(ALMACEN); r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); } catch (e) { mal(e); }
+    }));
+    const op = async (modo, f) => { const d = await abrir(); return new Promise((ok, mal) => { const t = d.transaction(ALMACEN, modo), r = f(t.objectStore(ALMACEN)); t.oncomplete = () => ok(r && r.result); t.onerror = () => mal(t.error); }); };
+    const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+    return {
+      async clave(app, panel, args) {
+        let info = null; try { info = app?.getHostContext?.()?.toolInfo || null; } catch {}
+        return `${panel}:${await sha(JSON.stringify([info?.id ?? null, info?.tool?.name || '', args || {}]))}`;
+      },
+      async leer(k) {
+        try { const v = await op('readonly', (s) => s.get(k)); return v && Date.now() - v.t < VIDA ? v.dato : null; } catch { return null; }
+      },
+      async guardar(k, dato) {
+        try {
+          await op('readwrite', (s) => s.put({ t: Date.now(), dato }, k));
+          const todas = await op('readonly', (s) => s.getAll()), claves = await op('readonly', (s) => s.getAllKeys());
+          if (todas.length > MAX) { const viejas = claves.map((c, i) => [c, todas[i].t]).sort((a, b) => a[1] - b[1]).slice(0, todas.length - MAX); await op('readwrite', (s) => { viejas.forEach(([c]) => s.delete(c)); }); }
+        } catch {}
+      },
+    };
+  })();
+
+  global.RA_prov = { fetchT, listarModelos, elegirModelo, candidatos, PROVEEDORES, ORDEN_POR_DEFECTO, leerLlave, guardarLlave, borrarLlave, configurados, enmascarar, orden, guardarOrden, llamar, llamarConRespaldo, probar, exportarConfig, importarConfig, guardado, memoria };
 })(typeof window !== 'undefined' ? window : globalThis);

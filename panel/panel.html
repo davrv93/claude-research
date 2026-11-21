@@ -219,6 +219,7 @@
   </section>
 
 <script src="https://unpkg.com/p5@1.11.3/lib/p5.min.js"></script>
+<script src="__CEREBRO_URL__/proveedores.js"></script>
 <script type="module">
 import { App } from 'https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.5/dist/src/app-with-deps.js';
 
@@ -534,6 +535,24 @@ function terminarRespuesta(turno, r, evitadoExtra = 0) {
   sumar({ externo, evitado: externo + evitadoExtra, costo: r.usage.cost || 0 });
   guardarNota(turno.querySelector('.pregunta').textContent, r.texto, turno._fuentes || [], estado.peticion?.modo || 'delegar');
   pintarCuota();
+  guardarFoto();
+}
+
+// Foto del hilo para la memoria por llamada (proveedores.js): al volver a montarse, el panel se pinta igual sin
+// repetir la consulta ni duplicar la nota del cerebro.
+function guardarFoto() {
+  const M = window.RA_prov?.memoria; if (!M || !estado.claveMemoria) return;
+  const turnos = [...$('hilo').querySelectorAll('.turno')];
+  M.guardar(estado.claveMemoria, { hilo: $('hilo').innerHTML, fuentes: turnos.map((t) => t._fuentes || []), peticion: estado.peticion, mensajes: estado.mensajes,
+    fuentesUlt: estado.fuentes, ultima: estado.ultimaRespuesta, consulta: estado.consulta, modelo: $('modelo').textContent });
+}
+function restaurarFoto(f) {
+  $('hilo').innerHTML = f.hilo || ''; estado.turnoPendiente = null;
+  [...$('hilo').querySelectorAll('.turno')].forEach((t, i) => { t._fuentes = f.fuentes?.[i] || []; t.querySelector('.btn-continuar')?.addEventListener('click', () => continuar(t)); });
+  Object.assign(estado, { peticion: f.peticion, mensajes: f.mensajes || [], fuentes: f.fuentesUlt || [], ultimaRespuesta: f.ultima || '' });
+  if (f.consulta) estado.consulta = f.consulta;
+  $('consulta').hidden = false; $('acciones').hidden = false; $('seguir').hidden = false; $('modelo').textContent = f.modelo || '';
+  mostrarEstado(''); mostrarError('error', ''); pintarMedidor('medidor-consulta', estado.consulta);
 }
 
 // Pregunta de seguimiento al modelo externo, con el historial del hilo. No pasa por Claude.
@@ -1052,6 +1071,7 @@ function aplicarTema(ctx) {
 // Ambos manejadores van antes de connect(): el host puede mandar la entrada apenas conecta.
 app.ontoolinput = (params) => {
   estado.entradaChars = JSON.stringify(params?.arguments || {}).length;
+  estado.args = params?.arguments || {};
   const a = params?.arguments || {};
   if (a.pregunta && !('tema' in a && !a.pregunta) && !a.urls && !a.tipo) {
     $('consulta').hidden = false;
@@ -1074,6 +1094,11 @@ app.ontoolresult = async (result) => {
     mostrarError('error', (result?.content || []).map((c) => c.text).join(' ') || 'La herramienta devolvió un error.');
     return;
   }
+  // ¿Ya se respondió esta misma llamada? (el host vuelve a montar el panel al regresar con el scroll)
+  const M = window.RA_prov?.memoria;
+  estado.claveMemoria = M ? await M.clave(app, 'panel', estado.args || sc) : null;
+  const foto = estado.claveMemoria ? await M.leer(estado.claveMemoria) : null;
+  if (foto) { restaurarFoto(foto); return; }
   if (sc.modo === 'calcular') {
     if (estado.turnoPendiente) { estado.turnoPendiente.remove(); estado.turnoPendiente = null; }
     mostrarEstado(''); $('herramientas').hidden = false; $('calc-tipo').value = sc.tipo || 'igv'; pintarCalc(); $('herramientas').scrollIntoView({ behavior: 'smooth' }); return;

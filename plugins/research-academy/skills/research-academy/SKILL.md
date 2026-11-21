@@ -3,7 +3,7 @@ name: research-academy
 description: "Kit del alumno de Research Academy (JMD Learning) en Claude, Cursor, Codex, Antigravity o DeepSeek Harness. SIEMPRE que el mensaje empiece con research-academy, y tambien cuando pida investigar o buscar datos actuales, explicar un concepto, resumir o transformar un Excel, CSV, PDF, Word, foto o audio, crear una plantilla de Excel o un Word, hacer un PPT, escribir o corregir codigo, un objeto en 3D, citas APA, calcular IGV, punto de equilibrio o prestamo, ver su mapa mental o cerebro, o configurar llaves y proveedores. Enruta cada pedido a una herramienta del panel research-academy-panel para gastar pocos tokens; donde el panel no se ve, trabaja en modo directo con las herramientas del agente."
 ---
 
-# Research Academy 0.10.0
+# Research Academy 0.11.0
 
 ## Donde estas (decide antes que nada)
 
@@ -31,6 +31,7 @@ Palabras del alumno -> herramienta (decide por esta lista primero):
 - excel, csv, pdf, word, archivo, documento, foto, audio, resume este, analiza este, ppt de este, corrige este archivo -> `docs_analizar` (con `accion` si la dice)
 - hazme una plantilla, crea un excel, redacta un word, carta, solicitud, informe nuevo -> `docs_crear`
 - 3d, modelo 3d, render -> `render3d`
+- dashboard, tablero, kpis, indicadores, panel de control, graficos de mi excel -> `dashboard`
 - igv, punto de equilibrio, prestamo, cuota, margen -> `calcular`
 - mapa mental, mi cerebro, que tengo guardado -> `mapa`
 - configurar, llave, proveedor, conectar -> `configurar`
@@ -44,10 +45,11 @@ Si el conector `research-academy-panel` esta disponible, es obligatorio: actuali
 | Archivo del alumno (Excel, CSV, PDF, Word): analizar, resumir, corregir, informe, PPT, anadir seccion o referencias | Panel: `docs_analizar(instruccion, accion)`. No pidas que suba el archivo al chat |
 | Concepto estable: ciencia, matematicas, historia, gestion, contabilidad, programacion, arte | Panel: `delegar(pregunta, max_palabras 150)` |
 | Actualidad, precios, rankings, normativa, versiones, estadisticas | Panel: `investigar(pregunta, consultas)` con 2 o 3 consultas de 3 a 6 palabras |
-| App, calculadora, tablero, formulario | Artifact, una version funcional, datos del alumno o ficticios |
+| Tablero o dashboard de datos (Excel, CSV, KPIs, graficos) | Panel: `dashboard(objetivo)`; el alumno suelta el archivo en el panel. Reglas: `references/dashboard.md` |
+| App, calculadora, formulario | Artifact, una version funcional, datos del alumno o ficticios |
 | Crear un Excel o Word nuevo (plantilla, informe, carta, solicitud) | Panel: `docs_crear(tipo, instruccion)` |
 | Codigo: snippet, corregir error, explicar, revisar, tests, convertir | Panel: `codigo(accion, lenguaje, instruccion, codigo)`. Arquitectura, refactor grande o seguridad: directo en Claude |
-| Objeto en 3D desde texto o foto (three.js, GSAP) | Panel: `render3d(descripcion, estilo)` |
+| Objeto en 3D desde texto o foto (three.js, GSAP) | Panel: `render3d(descripcion, estilo)`. Guia de realismo: `references/render-3d.md` |
 | Configurar llaves, proveedores (Gemini, Groq, Cerebras, Mistral), frase del cerebro | Panel: `configurar()`. Nunca pidas ni aceptes una llave en el chat; si el alumno la pega, dile que la borre y la ponga en el panel |
 | Cita o bibliografia de URLs | Panel: `citar(urls)` |
 | IGV, punto de equilibrio, prestamo, margen | Panel: `calcular(tipo)` |
